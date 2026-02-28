@@ -232,8 +232,8 @@ let lastRollResults = null; // Store last results for sharing
 function getCameraDefault() {
     const aspect = mainContent.clientWidth / mainContent.clientHeight;
     if (aspect < 1) {
-        // Portrait: higher camera, look slightly forward to center the ground area
-        return { pos: new THREE.Vector3(0, 30, 12), lookAt: new THREE.Vector3(0, 0, 2) };
+        // Portrait: high top-down camera so narrow viewport sees entire play area
+        return { pos: new THREE.Vector3(0, 40, 8), lookAt: new THREE.Vector3(0, 0, 0) };
     }
     return { pos: new THREE.Vector3(0, 20, 18), lookAt: new THREE.Vector3(0, 0, 0) };
 }
@@ -637,6 +637,8 @@ function init() {
         gravity: new CANNON.Vec3(0, -35, 0)
     });
     world.broadphase = new CANNON.SAPBroadphase(world);
+    world.solver.iterations = 20;
+    world.solver.tolerance = 0.001;
     world.allowSleep = true;
 
     const diceFloorContact = new CANNON.ContactMaterial(diceMaterial, floorMaterial, {
@@ -652,8 +654,8 @@ function init() {
     world.addContactMaterial(diceWallContact);
 
     const diceDiceContact = new CANNON.ContactMaterial(diceMaterial, diceMaterial, {
-        friction: 0.5,
-        restitution: 0.15,
+        friction: 0.3,
+        restitution: 0.5,
     });
     world.addContactMaterial(diceDiceContact);
 
@@ -785,8 +787,8 @@ function createWalls() {
     const distanceToFloor = camera.position.y - floorMesh.position.y;
     let viewWidth = 2 * distanceToFloor * Math.tan(halfFov) * camera.aspect;
     let viewHeight = 2 * distanceToFloor * Math.tan(halfFov);
-    const wallDistX = Math.max(12, viewWidth * 0.45);
-    const wallDistZ = Math.max(12, viewHeight * 0.45);
+    const wallDistX = Math.max(6, viewWidth * 0.45);
+    const wallDistZ = Math.max(6, viewHeight * 0.45);
 
     const wallMaterial3D = new THREE.MeshBasicMaterial({ color: config.wallColor, wireframe: true, visible: config.showWallVisuals });
 
@@ -1118,7 +1120,8 @@ function rollDice(power = 0.5, spin = 0.5) {
         return;
     }
 
-    const spread = 8;
+    const aspect = mainContent.clientWidth / mainContent.clientHeight;
+    const spread = aspect < 1 ? 5 : 8;
     const initialHeight = 10;
 
     playRollSound();
@@ -1199,7 +1202,7 @@ function animate(time = 0) {
 
     try {
         if (diceBodies.length > 0) {
-            world.step(1/60, dt, 2);
+            world.step(1/60, dt, 5);
 
             let allSettled = diceBodies.length > 0;
 
@@ -1248,8 +1251,9 @@ function animate(time = 0) {
                 diceMeshes.forEach(m => center.add(m.position));
                 center.divideScalar(diceMeshes.length);
                 center.y = 0;
+                const settleHeight = camera.aspect < 1 ? 32 : 25;
                 cameraTarget = {
-                    pos: new THREE.Vector3(center.x, 25, center.z + 0.01),
+                    pos: new THREE.Vector3(center.x, settleHeight, center.z + 0.01),
                     lookAt: center
                 };
                 cameraAnimating = true;
