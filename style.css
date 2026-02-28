@@ -826,9 +826,9 @@ body.sound-off .sound-on-icon { display: none; }
     .controls-panel .controls-header { order: -1; }
     /* dice-selector, power-bars, results, share-config-btn stay order: 0 */
 
-    /* Reduce collapsed peek: drag handle + action buttons only */
+    /* Reduce collapsed peek: drag handle + action buttons + dice summary */
     .controls-panel.collapsed {
-        transform: translateY(calc(100% - 80px));
+        transform: translateY(calc(100% - 110px));
     }
 
     /* Replace pseudo-element with real drag handle */
