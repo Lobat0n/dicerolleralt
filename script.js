@@ -6,7 +6,7 @@ import * as CANNON from 'cannon-es';
 const config = {
     maxDice: 50,
     settleThreshold: 0.15,
-    settleTimeThreshold: 80,
+    settleTimeThreshold: 30,
     baseDieColor: 0xeeeeee,
     floorColor: 0x2a1a0e,
     wallColor: 0x666666,
@@ -217,7 +217,7 @@ function onPhysicsCollision(e) {
 }
 
 // --- State ---
-let scene, camera, renderer, world, controls;
+let scene, camera, renderer, world, controls, directionalLight;
 let diceMeshes = [];
 let diceBodies = [];
 let floorMesh, floorBody;
@@ -281,6 +281,30 @@ function createNumberCanvas(text, size) {
     return c;
 }
 
+// --- Texture Caches ---
+const numberTextureCache = new Map();
+const faceTextureCache = new Map();
+
+function getCachedNumberTexture(label, size) {
+    const key = `${label}_${size}`;
+    if (!numberTextureCache.has(key)) {
+        const canvas = createNumberCanvas(label, size);
+        const texture = new THREE.CanvasTexture(canvas);
+        numberTextureCache.set(key, texture);
+    }
+    return numberTextureCache.get(key);
+}
+
+function getCachedFaceTexture(text, size, bgColor, textColor) {
+    const key = `${text}_${size}_${bgColor}_${textColor}`;
+    if (!faceTextureCache.has(key)) {
+        const canvas = createFaceTexture(text, size, bgColor, textColor);
+        const texture = new THREE.CanvasTexture(canvas);
+        faceTextureCache.set(key, texture);
+    }
+    return faceTextureCache.get(key);
+}
+
 function getGeometricFaces(geometry) {
     const geo = geometry.index ? geometry.toNonIndexed() : geometry;
     const pos = geo.getAttribute('position');
@@ -325,7 +349,7 @@ function getGeometricFaces(geometry) {
     });
 }
 
-function addD4Numbers(mesh, geometry) {
+function addD4Numbers(mesh, geometry, precomputedFaces) {
     const geo = geometry.index ? geometry.toNonIndexed() : geometry;
     const pos = geo.getAttribute('position');
 
@@ -343,7 +367,7 @@ function addD4Numbers(mesh, geometry) {
     const vertexValues = uniqueVerts.map((v, i) => ({ pos: v, value: i + 1 }));
     mesh.userData.d4Vertices = vertexValues;
 
-    const faces = getGeometricFaces(geometry);
+    const faces = precomputedFaces || getGeometricFaces(geometry);
 
     for (const face of faces) {
         const faceVerts = [];
@@ -360,9 +384,7 @@ function addD4Numbers(mesh, geometry) {
             const offset = face.normal.clone().multiplyScalar(0.03);
             labelPos.add(offset);
 
-            const numCanvas = createNumberCanvas(fv.value.toString(), 128);
-            const texture = new THREE.CanvasTexture(numCanvas);
-            texture.needsUpdate = true;
+            const texture = getCachedNumberTexture(fv.value.toString(), 128);
 
             const size = 0.6;
             const planeGeo = new THREE.PlaneGeometry(size, size);
@@ -402,8 +424,8 @@ function readD4Value(dieMesh) {
     return result;
 }
 
-function addFaceNumbers(mesh, geometry, labels) {
-    const faces = getGeometricFaces(geometry);
+function addFaceNumbers(mesh, geometry, labels, precomputedFaces) {
+    const faces = precomputedFaces || getGeometricFaces(geometry);
     const faceCount = labels.length;
 
     const faceData = [];
@@ -417,9 +439,7 @@ function addFaceNumbers(mesh, geometry, labels) {
 
         const size = face.radius * 0.9;
 
-        const numCanvas = createNumberCanvas(label, 256);
-        const texture = new THREE.CanvasTexture(numCanvas);
-        texture.needsUpdate = true;
+        const texture = getCachedNumberTexture(label, 256);
 
         const planeGeo = new THREE.PlaneGeometry(size, size);
         const planeMat = new THREE.MeshBasicMaterial({
@@ -447,9 +467,7 @@ function createD6Materials(baseColor) {
     const faces = [4, 3, 1, 6, 2, 5];
     const materials = [];
     for (let i = 0; i < 6; i++) {
-        const faceCanvas = createFaceTexture(faces[i].toString(), 256, bgHex, '#111111');
-        const texture = new THREE.CanvasTexture(faceCanvas);
-        texture.needsUpdate = true;
+        const texture = getCachedFaceTexture(faces[i].toString(), 256, bgHex, '#111111');
         materials.push(new THREE.MeshStandardMaterial({
             map: texture, roughness: 0.4, metalness: 0.2
         }));
@@ -471,6 +489,7 @@ function init() {
 
     // Renderer
     renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
@@ -488,7 +507,7 @@ function init() {
     const ambientLight = new THREE.AmbientLight(0xfff5e6, 0.6);
     scene.add(ambientLight);
 
-    const directionalLight = new THREE.DirectionalLight(0xfff0dd, 0.8);
+    directionalLight = new THREE.DirectionalLight(0xfff0dd, 0.8);
     directionalLight.position.set(8, 15, 10);
     directionalLight.castShadow = true;
     directionalLight.shadow.mapSize.width = 1024;
@@ -766,7 +785,7 @@ function createConvexPolyhedron(geometry) {
 
 // --- Dice Creation ---
 function getDieLabels(type, sides, geometry) {
-    const faceCount = getGeometricFaces(geometry).length;
+    const faceCount = (cachedGeometricFaces[type] || getGeometricFaces(geometry)).length;
 
     let values;
     if (type === 'd100') {
@@ -791,7 +810,7 @@ function createDie(type) {
     const data = diceData[type];
     if (!data) return null;
 
-    const geometry = data.geometry();
+    const geometry = cachedGeometries[type];
     let mesh;
 
     if (type === 'd6') {
@@ -812,7 +831,7 @@ function createDie(type) {
             metalness: 0.2,
         });
         mesh = new THREE.Mesh(geometry, material);
-        addD4Numbers(mesh, geometry);
+        addD4Numbers(mesh, geometry, cachedGeometricFaces[type]);
     } else {
         const material = new THREE.MeshStandardMaterial({
             color: data.color,
@@ -821,7 +840,7 @@ function createDie(type) {
         });
         mesh = new THREE.Mesh(geometry, material);
         const labels = getDieLabels(type, data.sides, geometry);
-        addFaceNumbers(mesh, geometry, labels);
+        addFaceNumbers(mesh, geometry, labels, cachedGeometricFaces[type]);
     }
 
     mesh.castShadow = true;
@@ -829,7 +848,7 @@ function createDie(type) {
 
     const body = new CANNON.Body({
         mass: data.mass,
-        shape: data.shape(),
+        shape: cachedShapes[type],
         material: diceMaterial,
         angularDamping: 0.8,
         linearDamping: 0.4,
@@ -841,6 +860,56 @@ function createDie(type) {
     body.addEventListener('collide', onPhysicsCollision);
 
     return { mesh, body };
+}
+
+// --- Pre-built Caches (built once at module load) ---
+const cachedGeometries = {};
+const cachedShapes = {};
+const cachedGeometricFaces = {};
+
+for (const type in diceData) {
+    cachedGeometries[type] = diceData[type].geometry();
+    cachedShapes[type] = diceData[type].shape();
+    cachedGeometricFaces[type] = getGeometricFaces(cachedGeometries[type]);
+}
+
+// Pre-bake all textures at module load
+(function initTextureCache() {
+    for (const type in diceData) {
+        if (type === 'd6') {
+            const bgHex = '#' + diceData.d6.color.toString(16).padStart(6, '0');
+            [4, 3, 1, 6, 2, 5].forEach(f => getCachedFaceTexture(f.toString(), 256, bgHex, '#111111'));
+            continue;
+        }
+        if (type === 'd4') {
+            for (let i = 1; i <= 4; i++) getCachedNumberTexture(i.toString(), 128);
+            continue;
+        }
+        const labels = getDieLabels(type, diceData[type].sides, cachedGeometries[type]);
+        labels.forEach(label => getCachedNumberTexture(label, 256));
+    }
+})();
+
+// --- Object Pool ---
+const dicePool = {};
+
+function acquireDie(type) {
+    if (!dicePool[type]) dicePool[type] = [];
+    const pool = dicePool[type];
+    const inactive = pool.find(d => !d.active);
+    if (inactive) {
+        inactive.active = true;
+        inactive.body.velocity.setZero();
+        inactive.body.angularVelocity.setZero();
+        inactive.body.force.setZero();
+        inactive.body.torque.setZero();
+        inactive.body.wakeUp();
+        return inactive;
+    }
+    const die = createDie(type);
+    die.active = true;
+    pool.push(die);
+    return die;
 }
 
 // --- Rolling Logic ---
@@ -860,6 +929,7 @@ function handleRollClick(powerNorm, spinNorm) {
 
 function rollDice(power = 0.5, spin = 0.5) {
     rolling = true;
+    directionalLight.castShadow = false;
     controls.enabled = false;
     cameraAnimating = true;
     cameraTarget = cameraDefault;
@@ -925,7 +995,7 @@ function rollDice(power = 0.5, spin = 0.5) {
 
     diceToRoll.forEach((type, index) => {
         try {
-            const die = createDie(type);
+            const die = acquireDie(type);
             if (!die) return;
 
             const angle = (index / totalDiceCount) * Math.PI * 2;
@@ -975,31 +1045,11 @@ function rollDice(power = 0.5, spin = 0.5) {
 
 // --- Clear Dice ---
 function clearDice() {
-    diceMeshes.forEach(mesh => {
-        while (mesh.children.length > 0) {
-            const child = mesh.children[0];
-            if (child.geometry) child.geometry.dispose();
-            if (child.material) {
-                if (child.material.map) child.material.map.dispose();
-                child.material.dispose();
-            }
-            mesh.remove(child);
-        }
-        if (mesh.geometry) mesh.geometry.dispose();
-        if (mesh.material) {
-            if (Array.isArray(mesh.material)) {
-                mesh.material.forEach(mat => {
-                    if (mat.map) mat.map.dispose();
-                    mat.dispose();
-                });
-            } else {
-                if (mesh.material.map) mesh.material.map.dispose();
-                mesh.material.dispose();
-            }
-        }
-        scene.remove(mesh);
-    });
+    diceMeshes.forEach(mesh => scene.remove(mesh));
     diceBodies.forEach(body => world.removeBody(body));
+    for (const type in dicePool) {
+        dicePool[type].forEach(d => d.active = false);
+    }
     diceMeshes = [];
     diceBodies = [];
 }
@@ -1016,7 +1066,7 @@ function animate(time = 0) {
 
     try {
         if (diceBodies.length > 0) {
-            world.step(1/60, dt, 3);
+            world.step(1/60, dt, 2);
 
             let allSettled = diceBodies.length > 0;
 
@@ -1060,6 +1110,7 @@ function animate(time = 0) {
 
             if (rolling && allSettled) {
                 rolling = false;
+                directionalLight.castShadow = true;
                 const center = new THREE.Vector3();
                 diceMeshes.forEach(m => center.add(m.position));
                 center.divideScalar(diceMeshes.length);

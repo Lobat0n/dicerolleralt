@@ -54,7 +54,39 @@ The file is organized in sequential sections (marked with `// ---` comment heade
 - **Physics-visual sync**: CANNON body positions/quaternions are copied to Three.js meshes each frame in the animation loop.
 - **Cache busting**: `script.js` is loaded with a `?v=` query parameter in `index.html` — increment this when deploying changes.
 
+### Performance Architecture
+
+- **Geometry/Shape caches**: `cachedGeometries`, `cachedShapes`, `cachedGeometricFaces` — built once at module load, shared across all dice instances
+- **Texture caches**: `numberTextureCache`, `faceTextureCache` — pre-baked at module load via IIFE, avoids canvas rasterization per roll
+- **Object pool**: `dicePool` + `acquireDie()` — reuses Three.js meshes and CANNON bodies across rolls; `clearDice()` releases to pool without disposing
+- **Shadow toggle**: `directionalLight.castShadow` disabled during active roll, re-enabled on settlement
+- **Settle threshold**: 30 frames (was 80) — ~0.5s of near-stillness before result read
+
 ### Fonts
 
 - **MedievalSharp** (Google Fonts) — headers, buttons, UI labels
 - **Open Sans** (Google Fonts) — numeric results, body text
+
+## Multi-Agent Coordination
+
+When multiple AI agents (Claude Code, Windsurf, Cursor, etc.) work on this project simultaneously:
+
+### Domain boundaries in script.js
+- **Config + DOM** (lines 1-50): UI agent
+- **Power bars** (lines 50-120): UI agent
+- **Sound system** (lines 120-220): Sound agent
+- **Textures + geometry** (lines 240-470): Physics/rendering agent
+- **Scene init + walls** (lines 460-670): Physics agent
+- **Dice data + shapes** (lines 670-770): Physics agent
+- **Caches + object pool** (lines 770-920): Physics agent
+- **Dice creation + rolling** (lines 920-1030): Physics agent
+- **Clear + animation loop** (lines 1030-1160): Physics agent
+- **Results + value reading** (lines 1160-1250): Physics agent
+- **URL/share/localStorage** (lines 1250+): Feature agent
+
+### Rules
+1. Before modifying script.js, check git status for uncommitted changes from another agent
+2. Prefer working on non-overlapping line ranges
+3. If another agent recently committed changes to your target area, pull first
+4. Use feature branches or worktrees when possible for parallel work
+5. Commit frequently with descriptive messages so other agents understand changes
