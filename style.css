@@ -792,72 +792,62 @@ body.sound-off .sound-on-icon { display: none; }
 }
 
 /* Hidden on desktop */
-.drag-handle-area, .dice-summary { display: none; }
+.drag-handle-area { display: none; }
+.show-controls-fab { display: none; }
 
-/* --- Responsive: Tablet --- */
+/* --- Responsive: Tablet & Mobile --- */
 @media (max-width: 900px) {
     .controls-panel {
         position: fixed;
-        left: 0;
-        right: 0;
-        bottom: 0;
-        top: auto;
+        left: 0; right: 0; bottom: 0; top: auto;
         width: 100%;
-        max-height: 55vh;
+        max-height: 80vh;
+        max-height: 80dvh; /* dynamic viewport height — excludes mobile browser chrome */
+        overflow: hidden; /* panel itself doesn't scroll; dice-selector does */
         border-radius: 20px 20px 0 0;
-        padding: 12px 16px 20px;
+        padding: 10px 16px 16px;
         transform: translateY(0);
         transition: transform 0.4s cubic-bezier(0.32, 0.72, 0, 1);
         z-index: 30;
     }
 
-    .controls-header h1 {
-        font-size: 1.2em;
-    }
+    .controls-panel.withdrawn { transform: translateY(100%); }
 
-    .app-footer {
-        display: none;
-    }
-
-    /* Reorder: action buttons + summary at top of panel */
-    .drag-handle-area { order: -10; }
-    .controls-panel .action-buttons { order: -3; margin-bottom: 4px; flex-direction: row; }
-    .controls-panel .dice-summary { order: -2; margin-bottom: 4px; }
-    .controls-panel .controls-header { order: -1; }
-    /* dice-selector, power-bars, results, share-config-btn stay order: 0 */
-
-    /* Reduce collapsed peek: drag handle + action buttons + dice summary */
-    .controls-panel.collapsed {
-        transform: translateY(calc(100% - 110px));
-    }
-
-    /* Replace pseudo-element with real drag handle */
     .controls-panel::before { display: none; }
 
-    /* Drag handle */
+    /* Drag handle = close affordance (pill bar at top) */
     .drag-handle-area {
-        display: flex; flex-direction: column; align-items: center;
-        padding: 6px 0 4px; cursor: pointer;
+        display: flex; align-items: center; justify-content: center;
+        padding: 4px 0 2px; cursor: pointer;
         -webkit-tap-highlight-color: transparent;
     }
     .drag-handle-area::before {
         content: ''; width: 40px; height: 4px;
-        background: var(--faded-ink); border-radius: 2px; opacity: 0.7;
+        background: var(--faded-ink); border-radius: 2px; opacity: 0.5;
     }
-    .drag-handle-hint {
-        font-family: 'Cormorant Garamond', serif; font-size: 0.65em;
-        color: var(--faded-ink); opacity: 0.5; margin-top: 2px;
-    }
-    .controls-panel:not(.collapsed) .drag-handle-hint { opacity: 0; }
 
-    /* Dice summary */
-    .dice-summary { display: flex; justify-content: center; }
-    .dice-summary-text {
-        font-family: 'Cinzel', serif; font-weight: 700; font-size: 0.75em;
-        color: var(--faded-ink); letter-spacing: 0.05em;
+    /* Flex layout: dice selector shrinks/scrolls, buttons always visible */
+    .drag-handle-area { flex-shrink: 0; }
+    .controls-header { flex-shrink: 0; margin-bottom: 8px; padding-bottom: 8px; }
+    .controls-header h1 { font-size: 1.1em; }
+    .dice-selector {
+        flex: 1 1 auto; min-height: 0; overflow-y: auto;
+        gap: 1px; margin-bottom: 6px;
     }
+    .dice-option { padding: 3px 8px; }
+    .power-bars { flex-shrink: 0; padding: 8px; margin-bottom: 6px; }
+    .power-bar-group { margin-bottom: 4px; }
+    .action-buttons { flex-shrink: 0; margin-bottom: 0; }
+    .action-buttons button { padding: 8px 12px; }
+
+    /* Hide mobile-unnecessary sections (results shown via overlay) */
+    #results { display: none; }
+    .share-config-btn { display: none; }
+    .dice-summary { display: none; }
+    .drag-handle-hint { display: none; }
 
     /* Action button emphasis */
+    .action-buttons { flex-direction: row; }
     #roll-button {
         background: linear-gradient(135deg, var(--mahogany), var(--warm-copper));
         color: var(--aged-gold);
@@ -866,39 +856,54 @@ body.sound-off .sound-on-icon { display: none; }
         flex: 2;
     }
     #clear-button { flex: 1; font-size: 0.75em; opacity: 0.8; }
+
+    .app-footer { display: none; }
+
+    /* FAB */
+    .show-controls-fab {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        position: fixed;
+        bottom: 24px;
+        right: 20px;
+        z-index: 25;
+        background: linear-gradient(135deg, var(--dark-walnut), var(--mahogany));
+        color: var(--aged-gold);
+        border: 1px solid rgba(212, 163, 73, 0.4);
+        border-radius: 28px;
+        padding: 12px 18px;
+        font-family: 'Cinzel', serif;
+        font-weight: 700;
+        font-size: 0.85em;
+        cursor: pointer;
+        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
+    }
+    .show-controls-fab[hidden] { display: none; }
+    .show-controls-fab:not([hidden]) {
+        animation: fab-rise 0.35s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+    }
+    .show-controls-fab svg { width: 20px; height: 20px; }
 }
 
-/* --- Responsive: Mobile --- */
+@keyframes fab-rise {
+    from { opacity: 0; transform: translateY(20px) scale(0.85); }
+    to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+/* --- Responsive: Small phones --- */
 @media (max-width: 480px) {
-    .controls-panel {
-        max-height: 65vh;
-        padding: 10px 14px 16px;
-    }
-
-    .controls-header h1 {
-        font-size: 1.1em;
-    }
-
-    .dice-selector {
-        gap: 2px;
-    }
-
-    .dice-option {
-        padding: 5px 8px;
-    }
-
-    .action-buttons {
-        flex-direction: row;
-        gap: 6px;
-    }
+    .controls-panel { padding: 8px 14px 14px; }
+    .controls-header h1 { font-size: 1.1em; }
+    .dice-selector { gap: 2px; }
+    .dice-option { padding: 4px 8px; }
+    .power-bars { padding: 10px; margin-bottom: 8px; }
+    .action-buttons { flex-direction: row; gap: 6px; }
 }
 
 /* --- Responsive: Landscape --- */
 @media (max-width: 900px) and (orientation: landscape) {
-    .controls-panel { max-height: 45vh; padding: 6px 14px 10px; }
-    .controls-panel.collapsed { transform: translateY(calc(100% - 60px)); }
-    .drag-handle-hint { display: none; }
-    .dice-summary { display: none; }
+    .controls-panel { max-height: 85vh; padding: 6px 14px 10px; }
     .dice-selector { gap: 1px; }
     .dice-option { padding: 3px 8px; }
     .power-bars { padding: 8px; margin-bottom: 6px; }

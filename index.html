@@ -60,7 +60,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Uncial+Antiqua&family=Cormorant+Garamond:ital,wght@0,400;0,600;0,700;1,400&family=Cinzel:wght@400;700;900&display=swap" rel="stylesheet">
 
-    <link rel="stylesheet" href="style.css?v=27">
+    <link rel="stylesheet" href="style.css?v=31">
 </head>
 <body>
     <!-- Skip to content (a11y) -->
@@ -76,10 +76,19 @@
                 <button id="share-roll-button" class="share-roll-btn hidden" aria-label="Share this roll result">Share Roll</button>
             </div>
 
+            <button id="show-controls-fab" class="show-controls-fab"
+                    aria-label="Show dice controls" hidden>
+                <svg viewBox="0 0 24 24" width="24" height="24" fill="none"
+                     stroke="currentColor" stroke-width="1.5">
+                    <polygon points="12,1 21,7 21,17 12,23 3,17 3,7"/>
+                </svg>
+                Dice
+            </button>
+
             <div class="controls-panel" id="controls-panel">
                 <div class="drag-handle-area" id="drag-handle" role="button" tabindex="0"
                      aria-label="Expand or collapse controls">
-                    <span class="drag-handle-hint">Swipe up for dice</span>
+                    <span class="drag-handle-hint"></span>
                 </div>
                 <div class="controls-header">
                     <h1>Tavern Dice</h1>
@@ -231,6 +240,6 @@
         }
     </script>
     <!-- Main App Script -->
-    <script type="module" src="script.js?v=27"></script>
+    <script type="module" src="script.js?v=28"></script>
 </body>
 </html>

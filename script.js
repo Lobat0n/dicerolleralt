@@ -43,6 +43,7 @@ const powerTrack = document.getElementById('power-track');
 const spinTrack = document.getElementById('spin-track');
 const soundToggle = document.getElementById('sound-toggle');
 const controlsPanel = document.getElementById('controls-panel');
+const showControlsFab = document.getElementById('show-controls-fab');
 
 // --- Sound State ---
 let soundEnabled = true;
@@ -560,6 +561,17 @@ function createD6Materials(baseColor) {
     return materials;
 }
 
+// --- Mobile Panel Helpers ---
+function openControlsPanel() {
+    controlsPanel.classList.remove('withdrawn');
+    if (showControlsFab) showControlsFab.hidden = true;
+}
+
+function withdrawControlsPanel() {
+    controlsPanel.classList.add('withdrawn');
+    if (showControlsFab) showControlsFab.hidden = false;
+}
+
 // --- Initialization ---
 function init() {
     // Scene
@@ -708,23 +720,24 @@ function init() {
         });
     }
 
-    // Mobile drawer: collapse/expand with drag handle + swipe
+    // Mobile: panel starts open, withdraws after roll
     if (window.innerWidth <= 900) {
-        controlsPanel.classList.add('collapsed');
-
-        // Drag handle toggle
         const dragHandle = document.getElementById('drag-handle');
         if (dragHandle) {
-            dragHandle.addEventListener('click', () => controlsPanel.classList.toggle('collapsed'));
+            dragHandle.addEventListener('click', () => withdrawControlsPanel());
             dragHandle.addEventListener('keydown', (e) => {
                 if (e.key === 'Enter' || e.key === ' ') {
                     e.preventDefault();
-                    controlsPanel.classList.toggle('collapsed');
+                    withdrawControlsPanel();
                 }
             });
         }
 
-        // Touch swipe
+        if (showControlsFab) {
+            showControlsFab.addEventListener('click', openControlsPanel);
+        }
+
+        // Swipe down to dismiss
         let touchStartY = 0, touchStartTime = 0;
         controlsPanel.addEventListener('touchstart', (e) => {
             touchStartY = e.touches[0].clientY;
@@ -733,10 +746,8 @@ function init() {
         controlsPanel.addEventListener('touchend', (e) => {
             const dy = e.changedTouches[0].clientY - touchStartY;
             if (Date.now() - touchStartTime > 300) return;
-            if (dy > 40 && controlsPanel.scrollTop <= 0)
-                controlsPanel.classList.add('collapsed');
-            else if (dy < -40 && controlsPanel.classList.contains('collapsed'))
-                controlsPanel.classList.remove('collapsed');
+            if (dy > 50 && controlsPanel.scrollTop <= 0)
+                withdrawControlsPanel();
         }, { passive: true });
     }
 
@@ -1029,9 +1040,9 @@ function handleRollClick(powerNorm, spinNorm) {
 
     rollDice(power, spin);
 
-    // Auto-collapse mobile drawer
+    // Auto-withdraw mobile panel
     if (window.innerWidth <= 900) {
-        controlsPanel.classList.add('collapsed');
+        withdrawControlsPanel();
     }
 }
 
@@ -1345,6 +1356,12 @@ function readDieValue(dieBody, dieMesh) {
 
 // --- Window Resize ---
 function onWindowResize() {
+    // Reset mobile state when resizing to desktop
+    if (mainContent.clientWidth > 900) {
+        controlsPanel.classList.remove('withdrawn');
+        if (showControlsFab) showControlsFab.hidden = true;
+    }
+
     const width = mainContent.clientWidth;
     const height = mainContent.clientHeight;
 
