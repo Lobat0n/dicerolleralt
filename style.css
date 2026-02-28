@@ -791,6 +791,9 @@ body.sound-off .sound-on-icon { display: none; }
     text-decoration: underline;
 }
 
+/* Hidden on desktop */
+.drag-handle-area, .dice-summary { display: none; }
+
 /* --- Responsive: Tablet --- */
 @media (max-width: 900px) {
     .controls-panel {
@@ -808,21 +811,6 @@ body.sound-off .sound-on-icon { display: none; }
         z-index: 30;
     }
 
-    .controls-panel.collapsed {
-        transform: translateY(calc(100% - 140px));
-    }
-
-    .controls-panel::before {
-        content: '';
-        display: block;
-        width: 40px;
-        height: 4px;
-        background: var(--faded-ink);
-        border-radius: 2px;
-        margin: 0 auto 10px;
-        opacity: 0.5;
-    }
-
     .controls-header h1 {
         font-size: 1.2em;
     }
@@ -830,6 +818,54 @@ body.sound-off .sound-on-icon { display: none; }
     .app-footer {
         display: none;
     }
+
+    /* Reorder: action buttons + summary at top of panel */
+    .drag-handle-area { order: -10; }
+    .controls-panel .action-buttons { order: -3; margin-bottom: 4px; flex-direction: row; }
+    .controls-panel .dice-summary { order: -2; margin-bottom: 4px; }
+    .controls-panel .controls-header { order: -1; }
+    /* dice-selector, power-bars, results, share-config-btn stay order: 0 */
+
+    /* Reduce collapsed peek: drag handle + action buttons only */
+    .controls-panel.collapsed {
+        transform: translateY(calc(100% - 80px));
+    }
+
+    /* Replace pseudo-element with real drag handle */
+    .controls-panel::before { display: none; }
+
+    /* Drag handle */
+    .drag-handle-area {
+        display: flex; flex-direction: column; align-items: center;
+        padding: 6px 0 4px; cursor: pointer;
+        -webkit-tap-highlight-color: transparent;
+    }
+    .drag-handle-area::before {
+        content: ''; width: 40px; height: 4px;
+        background: var(--faded-ink); border-radius: 2px; opacity: 0.7;
+    }
+    .drag-handle-hint {
+        font-family: 'Cormorant Garamond', serif; font-size: 0.65em;
+        color: var(--faded-ink); opacity: 0.5; margin-top: 2px;
+    }
+    .controls-panel:not(.collapsed) .drag-handle-hint { opacity: 0; }
+
+    /* Dice summary */
+    .dice-summary { display: flex; justify-content: center; }
+    .dice-summary-text {
+        font-family: 'Cinzel', serif; font-weight: 700; font-size: 0.75em;
+        color: var(--faded-ink); letter-spacing: 0.05em;
+    }
+
+    /* Action button emphasis */
+    #roll-button {
+        background: linear-gradient(135deg, var(--mahogany), var(--warm-copper));
+        color: var(--aged-gold);
+        border-color: rgba(212, 163, 73, 0.4);
+        font-size: 0.9em;
+        flex: 2;
+    }
+    #clear-button { flex: 1; font-size: 0.75em; opacity: 0.8; }
 }
 
 /* --- Responsive: Mobile --- */
@@ -852,9 +888,21 @@ body.sound-off .sound-on-icon { display: none; }
     }
 
     .action-buttons {
-        flex-direction: column;
+        flex-direction: row;
         gap: 6px;
     }
+}
+
+/* --- Responsive: Landscape --- */
+@media (max-width: 900px) and (orientation: landscape) {
+    .controls-panel { max-height: 45vh; padding: 6px 14px 10px; }
+    .controls-panel.collapsed { transform: translateY(calc(100% - 60px)); }
+    .drag-handle-hint { display: none; }
+    .dice-summary { display: none; }
+    .dice-selector { gap: 1px; }
+    .dice-option { padding: 3px 8px; }
+    .power-bars { padding: 8px; margin-bottom: 6px; }
+    .action-buttons button { padding: 6px 10px; font-size: 0.75em; }
 }
 
 /* --- Reduced Motion --- */

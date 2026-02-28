@@ -77,6 +77,10 @@
             </div>
 
             <div class="controls-panel" id="controls-panel">
+                <div class="drag-handle-area" id="drag-handle" role="button" tabindex="0"
+                     aria-label="Expand or collapse controls">
+                    <span class="drag-handle-hint">Swipe up for dice</span>
+                </div>
                 <div class="controls-header">
                     <h1>Tavern Dice</h1>
                     <div class="controls-header-actions">
@@ -192,6 +196,10 @@
                     <button id="clear-button" aria-label="Clear dice from table">Clear Table</button>
                 </div>
 
+                <div class="dice-summary" id="dice-summary" aria-live="polite">
+                    <span class="dice-summary-text"></span>
+                </div>
+
                 <div id="results" aria-live="polite">
                     <h2>Results</h2>
                     <p id="total-result">Total: 0</p>
@@ -223,6 +231,6 @@
         }
     </script>
     <!-- Main App Script -->
-    <script type="module" src="script.js?v=26"></script>
+    <script type="module" src="script.js?v=27"></script>
 </body>
 </html>

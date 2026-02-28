@@ -708,14 +708,36 @@ function init() {
         });
     }
 
-    // Mobile drawer: collapse/expand on drag handle area
+    // Mobile drawer: collapse/expand with drag handle + swipe
     if (window.innerWidth <= 900) {
         controlsPanel.classList.add('collapsed');
-        controlsPanel.addEventListener('click', (e) => {
-            if (e.target === controlsPanel || e.target === controlsPanel.querySelector('::before')) {
-                controlsPanel.classList.toggle('collapsed');
-            }
-        });
+
+        // Drag handle toggle
+        const dragHandle = document.getElementById('drag-handle');
+        if (dragHandle) {
+            dragHandle.addEventListener('click', () => controlsPanel.classList.toggle('collapsed'));
+            dragHandle.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    controlsPanel.classList.toggle('collapsed');
+                }
+            });
+        }
+
+        // Touch swipe
+        let touchStartY = 0, touchStartTime = 0;
+        controlsPanel.addEventListener('touchstart', (e) => {
+            touchStartY = e.touches[0].clientY;
+            touchStartTime = Date.now();
+        }, { passive: true });
+        controlsPanel.addEventListener('touchend', (e) => {
+            const dy = e.changedTouches[0].clientY - touchStartY;
+            if (Date.now() - touchStartTime > 300) return;
+            if (dy > 40 && controlsPanel.scrollTop <= 0)
+                controlsPanel.classList.add('collapsed');
+            else if (dy < -40 && controlsPanel.classList.contains('collapsed'))
+                controlsPanel.classList.remove('collapsed');
+        }, { passive: true });
     }
 
     // Restore preferences from localStorage
@@ -1484,6 +1506,18 @@ function updateDiceOptionStates() {
         const count = parseInt(input?.value) || 0;
         option.classList.toggle('active', count > 0);
     });
+    updateDiceSummary();
+}
+
+function updateDiceSummary() {
+    const el = document.querySelector('.dice-summary-text');
+    if (!el) return;
+    const parts = [];
+    for (const key in diceInputs) {
+        const count = parseInt(diceInputs[key].value) || 0;
+        if (count > 0) parts.push(count + (key === 'd100' ? 'd%' : key));
+    }
+    el.textContent = parts.join(' + ') || 'Tap + to add dice';
 }
 
 // --- Analytics (Plausible) ---
