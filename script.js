@@ -229,8 +229,15 @@ let cameraAnimating = false;
 let lastRollResults = null; // Store last results for sharing
 
 // --- Camera Animation State ---
-const cameraDefault = { pos: new THREE.Vector3(0, 20, 18), lookAt: new THREE.Vector3(0, 0, 0) };
-let cameraTarget = cameraDefault;
+function getCameraDefault() {
+    const aspect = mainContent.clientWidth / mainContent.clientHeight;
+    if (aspect < 1) {
+        // Portrait: higher camera, look slightly forward to center the ground area
+        return { pos: new THREE.Vector3(0, 30, 12), lookAt: new THREE.Vector3(0, 0, 2) };
+    }
+    return { pos: new THREE.Vector3(0, 20, 18), lookAt: new THREE.Vector3(0, 0, 0) };
+}
+let cameraTarget = null;
 let cameraLerpSpeed = 2.5;
 
 // --- Physics Materials ---
@@ -580,9 +587,11 @@ function init() {
 
     // Camera
     const aspect = mainContent.clientWidth / mainContent.clientHeight;
+    const defaults = getCameraDefault();
     camera = new THREE.PerspectiveCamera(60, aspect, 0.1, 1000);
-    camera.position.set(0, 20, 18);
-    camera.lookAt(0, 0, 0);
+    camera.position.copy(defaults.pos);
+    camera.lookAt(defaults.lookAt);
+    cameraTarget = defaults;
 
     // Renderer
     renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true });
@@ -764,6 +773,11 @@ function init() {
 }
 
 // --- Wall Creation ---
+function removeWalls() {
+    walls.forEach(body => world.removeBody(body));
+    walls = [];
+}
+
 function createWalls() {
     const wallThickness = 2;
     const wallHeight = 20;
@@ -771,8 +785,8 @@ function createWalls() {
     const distanceToFloor = camera.position.y - floorMesh.position.y;
     let viewWidth = 2 * distanceToFloor * Math.tan(halfFov) * camera.aspect;
     let viewHeight = 2 * distanceToFloor * Math.tan(halfFov);
-    const wallDistX = Math.max(12, viewWidth * 0.4);
-    const wallDistZ = Math.max(12, viewHeight * 0.4);
+    const wallDistX = Math.max(12, viewWidth * 0.45);
+    const wallDistZ = Math.max(12, viewHeight * 0.45);
 
     const wallMaterial3D = new THREE.MeshBasicMaterial({ color: config.wallColor, wireframe: true, visible: config.showWallVisuals });
 
@@ -1051,7 +1065,7 @@ function rollDice(power = 0.5, spin = 0.5) {
     directionalLight.castShadow = false;
     controls.enabled = false;
     cameraAnimating = true;
-    cameraTarget = cameraDefault;
+    cameraTarget = getCameraDefault();
 
     // Hide result overlay + share button
     resultOverlay.classList.remove('visible', 'critical', 'fumble');
@@ -1370,6 +1384,16 @@ function onWindowResize() {
     camera.aspect = width / height;
     camera.updateProjectionMatrix();
     renderer.setSize(width, height);
+
+    // Update camera for new aspect ratio
+    const defaults = getCameraDefault();
+    camera.position.copy(defaults.pos);
+    camera.lookAt(defaults.lookAt);
+    cameraTarget = defaults;
+
+    // Recreate walls to match new canvas dimensions
+    removeWalls();
+    createWalls();
 }
 
 // --- URL-Based Dice Presets ---
