@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tavern Dice - 3D RPG Dice Roller</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=MedievalSharp&family=Open+Sans:wght@400;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="app-container">
+        <header class="app-header">
+            <h1>Tavern Dice</h1>
+            <p>Your 3D Dice Rolling Companion</p>
+        </header>
+
+        <div class="main-content">
+            <div class="controls-panel">
+                <h2>Select Your Dice</h2>
+                <div class="dice-selector">
+                    <div class="dice-option">
+                        <label for="d4">d4:</label>
+                        <input type="number" id="d4" name="d4" min="0" max="20" value="0">
+                    </div>
+                    <div class="dice-option">
+                        <label for="d6">d6:</label>
+                        <input type="number" id="d6" name="d6" min="0" max="20" value="0">
+                    </div>
+                    <div class="dice-option">
+                        <label for="d8">d8:</label>
+                        <input type="number" id="d8" name="d8" min="0" max="20" value="0">
+                    </div>
+                    <div class="dice-option">
+                        <label for="d10">d10:</label>
+                        <input type="number" id="d10" name="d10" min="0" max="20" value="0">
+                    </div>
+                     <div class="dice-option">
+                        <label for="d100">d% (00-90):</label>
+                        <input type="number" id="d100" name="d100" min="0" max="20" value="0">
+                    </div>
+                    <div class="dice-option">
+                        <label for="d12">d12:</label>
+                        <input type="number" id="d12" name="d12" min="0" max="20" value="0">
+                    </div>
+                    <div class="dice-option">
+                        <label for="d20">d20:</label>
+                        <input type="number" id="d20" name="d20" min="0" max="20" value="1">
+                    </div>
+                </div>
+                <div class="power-bars">
+                    <div class="power-bar-group">
+                        <label>Power</label>
+                        <div class="power-bar-track" id="power-track">
+                            <div class="power-bar-fill" id="power-fill"></div>
+                            <div class="power-bar-marker" id="power-marker"></div>
+                        </div>
+                        <span class="power-value" id="power-value">-</span>
+                    </div>
+                    <div class="power-bar-group">
+                        <label>Spin</label>
+                        <div class="power-bar-track" id="spin-track">
+                            <div class="power-bar-fill" id="spin-fill"></div>
+                            <div class="power-bar-marker" id="spin-marker"></div>
+                        </div>
+                        <span class="power-value" id="spin-value">-</span>
+                    </div>
+                    <button id="power-roll-button" class="power-roll-btn">Power Roll</button>
+                </div>
+                <div class="action-buttons">
+                    <button id="roll-button">Quick Roll</button>
+                    <button id="clear-button">Clear Table</button>
+                </div>
+                <div id="results">
+                    <h2>Results</h2>
+                    <p id="total-result">Total: 0</p>
+                    <p id="individual-results">Individual: -</p>
+                </div>
+            </div>
+
+            <div class="canvas-container">
+                <canvas id="dice-canvas"></canvas>
+                <div id="result-overlay" class="result-overlay hidden">
+                    <div class="result-total"></div>
+                    <div class="result-breakdown"></div>
+                </div>
+                 <!-- Placeholder for a non-intrusive sidebar ad -->
+                 <div class="ad-placeholder ad-sidebar">Sidebar Ad Space</div>
+            </div>
+
+        </div>
+
+        <footer class="app-footer">
+            <!-- Placeholder for a non-intrusive banner ad -->
+            <div class="ad-placeholder ad-banner">Banner Ad Space</div>
+        </footer>
+
+        <!-- Interstitial Ad Container -->
+        <div id="interstitial-ad" class="interstitial hidden">
+            <div class="interstitial-content">
+                <h2>Advertisement</h2>
+                <p>This is where an interstitial ad would appear.</p>
+                <p>(Normally loaded via an ad network SDK)</p>
+                <button id="close-interstitial">Close Ad</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Libraries via CDN -->
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://cdn.jsdelivr.net/npm/three@0.160/+esm",
+                "three/addons/controls/OrbitControls.js": "https://cdn.jsdelivr.net/npm/three@0.160/examples/jsm/controls/OrbitControls.js/+esm",
+                "cannon-es": "https://cdn.jsdelivr.net/npm/cannon-es@latest/+esm"
+            }
+        }
+    </script>
+    <!-- Main App Script -->
+    <script type="module" src="script.js?v=23"></script>
+</body>
+</html>
