@@ -305,6 +305,113 @@ function getCachedFaceTexture(text, size, bgColor, textColor) {
     return faceTextureCache.get(key);
 }
 
+// --- Atlas Texture Cache (merged number planes) ---
+const atlasTextureCache = new Map();
+
+function getAtlasTexture(labels, cellSize) {
+    const key = labels.join('_');
+    if (atlasTextureCache.has(key)) return atlasTextureCache.get(key);
+
+    const n = labels.length;
+    const cols = Math.ceil(Math.sqrt(n));
+    const rows = Math.ceil(n / cols);
+
+    const canvas = document.createElement('canvas');
+    canvas.width = cols * cellSize;
+    canvas.height = rows * cellSize;
+    const ctx = canvas.getContext('2d');
+
+    for (let i = 0; i < n; i++) {
+        const col = i % cols;
+        const row = Math.floor(i / cols);
+        ctx.drawImage(createNumberCanvas(labels[i], cellSize), col * cellSize, row * cellSize);
+    }
+
+    const texture = new THREE.CanvasTexture(canvas);
+    atlasTextureCache.set(key, texture);
+    return texture;
+}
+
+function createMergedNumberMesh(faces, labels) {
+    const n = Math.min(faces.length, labels.length);
+    const cols = Math.ceil(Math.sqrt(n));
+    const rows = Math.ceil(n / cols);
+    const atlas = getAtlasTexture(labels, 256);
+
+    const positions = new Float32Array(n * 4 * 3);
+    const uvs = new Float32Array(n * 4 * 2);
+    const indices = new Uint16Array(n * 6);
+    const worldUp = new THREE.Vector3(0, 1, 0);
+    const fallback = new THREE.Vector3(0, 0, 1);
+    const right = new THREE.Vector3();
+    const up = new THREE.Vector3();
+
+    for (let i = 0; i < n; i++) {
+        const face = faces[i];
+        const normal = face.normal;
+        const halfSize = face.radius * 0.45;
+
+        // Build local tangent frame
+        right.crossVectors(worldUp, normal);
+        if (right.lengthSq() < 0.001) right.crossVectors(fallback, normal);
+        right.normalize();
+        up.crossVectors(normal, right).normalize();
+
+        const cx = face.center.x + normal.x * 0.03;
+        const cy = face.center.y + normal.y * 0.03;
+        const cz = face.center.z + normal.z * 0.03;
+
+        // 4 vertices per quad: BL, BR, TR, TL
+        const pi = i * 12;
+        positions[pi]     = cx + (-right.x - up.x) * halfSize;
+        positions[pi + 1] = cy + (-right.y - up.y) * halfSize;
+        positions[pi + 2] = cz + (-right.z - up.z) * halfSize;
+        positions[pi + 3] = cx + (right.x - up.x) * halfSize;
+        positions[pi + 4] = cy + (right.y - up.y) * halfSize;
+        positions[pi + 5] = cz + (right.z - up.z) * halfSize;
+        positions[pi + 6] = cx + (right.x + up.x) * halfSize;
+        positions[pi + 7] = cy + (right.y + up.y) * halfSize;
+        positions[pi + 8] = cz + (right.z + up.z) * halfSize;
+        positions[pi + 9]  = cx + (-right.x + up.x) * halfSize;
+        positions[pi + 10] = cy + (-right.y + up.y) * halfSize;
+        positions[pi + 11] = cz + (-right.z + up.z) * halfSize;
+
+        // UV mapping to atlas grid cell
+        const col = i % cols;
+        const row = Math.floor(i / cols);
+        const u0 = col / cols;
+        const u1 = (col + 1) / cols;
+        const v0 = 1 - (row + 1) / rows;
+        const v1 = 1 - row / rows;
+
+        const ui = i * 8;
+        uvs[ui]     = u0; uvs[ui + 1] = v0;
+        uvs[ui + 2] = u1; uvs[ui + 3] = v0;
+        uvs[ui + 4] = u1; uvs[ui + 5] = v1;
+        uvs[ui + 6] = u0; uvs[ui + 7] = v1;
+
+        // Two triangles per quad
+        const bi = i * 4;
+        const ii = i * 6;
+        indices[ii]     = bi;     indices[ii + 1] = bi + 1; indices[ii + 2] = bi + 2;
+        indices[ii + 3] = bi;     indices[ii + 4] = bi + 2; indices[ii + 5] = bi + 3;
+    }
+
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+    geo.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
+    geo.setIndex(new THREE.BufferAttribute(indices, 1));
+
+    const material = new THREE.MeshBasicMaterial({
+        map: atlas,
+        transparent: true,
+        depthWrite: false,
+        side: THREE.DoubleSide,
+    });
+
+    return new THREE.Mesh(geo, material);
+}
+
 function getGeometricFaces(geometry) {
     const geo = geometry.index ? geometry.toNonIndexed() : geometry;
     const pos = geo.getAttribute('position');
@@ -429,37 +536,15 @@ function addFaceNumbers(mesh, geometry, labels, precomputedFaces) {
     const faceCount = labels.length;
 
     const faceData = [];
-
     for (let i = 0; i < Math.min(faces.length, faceCount); i++) {
         const face = faces[i];
         const label = labels[i];
         const numericValue = parseInt(label) || 0;
-
         faceData.push({ normal: face.normal.clone(), value: numericValue, label: label });
-
-        const size = face.radius * 0.9;
-
-        const texture = getCachedNumberTexture(label, 256);
-
-        const planeGeo = new THREE.PlaneGeometry(size, size);
-        const planeMat = new THREE.MeshBasicMaterial({
-            map: texture,
-            transparent: true,
-            depthWrite: false,
-            side: THREE.DoubleSide,
-        });
-        const plane = new THREE.Mesh(planeGeo, planeMat);
-
-        const offset = face.normal.clone().multiplyScalar(0.03);
-        plane.position.copy(face.center).add(offset);
-
-        const target = face.center.clone().add(face.normal);
-        plane.lookAt(target);
-
-        mesh.add(plane);
     }
 
     mesh.userData.faceData = faceData;
+    mesh.add(createMergedNumberMesh(faces, labels));
 }
 
 function createD6Materials(baseColor) {
@@ -887,6 +972,7 @@ for (const type in diceData) {
         }
         const labels = getDieLabels(type, diceData[type].sides, cachedGeometries[type]);
         labels.forEach(label => getCachedNumberTexture(label, 256));
+        getAtlasTexture(labels, 256);
     }
 })();
 
