@@ -3,56 +3,174 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Tavern Dice - 3D RPG Dice Roller</title>
-    <link rel="stylesheet" href="style.css">
+    <title>Tavern Dice - Free 3D RPG Dice Roller for D&D</title>
+
+    <!-- SEO -->
+    <meta name="description" content="Free 3D dice roller for D&D and tabletop RPGs. Roll d4, d6, d8, d10, d12, d20 with realistic physics and sound. No signup required.">
+    <meta name="theme-color" content="#1a1510">
+    <link rel="canonical" href="https://crit.quest/">
+
+    <!-- Open Graph -->
+    <meta property="og:title" content="Tavern Dice — 3D RPG Dice Roller">
+    <meta property="og:description" content="Free 3D dice roller for D&D and tabletop RPGs. Realistic physics, power bars, and sound effects.">
+    <meta property="og:image" content="https://crit.quest/og-image.png">
+    <meta property="og:url" content="https://crit.quest/">
+    <meta property="og:type" content="website">
+    <meta property="og:site_name" content="Tavern Dice">
+
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="Tavern Dice — 3D RPG Dice Roller">
+    <meta name="twitter:description" content="Free 3D dice roller for D&D and tabletop RPGs. Realistic physics, power bars, and sound effects.">
+    <meta name="twitter:image" content="https://crit.quest/og-image.png">
+
+    <!-- Favicon -->
+    <link rel="icon" type="image/x-icon" href="/favicon.ico">
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png">
+    <link rel="icon" type="image/png" sizes="192x192" href="/favicon-192.png">
+    <link rel="apple-touch-icon" href="/favicon-192.png">
+
+    <!-- PWA Manifest -->
+    <link rel="manifest" href="/manifest.json">
+
+    <!-- JSON-LD Structured Data -->
+    <script type="application/ld+json">
+    {
+        "@context": "https://schema.org",
+        "@type": "WebApplication",
+        "name": "Tavern Dice",
+        "description": "Free 3D dice roller for D&D and tabletop RPGs with realistic physics and sound.",
+        "url": "https://crit.quest/",
+        "applicationCategory": "GameApplication",
+        "operatingSystem": "Any",
+        "offers": {
+            "@type": "Offer",
+            "price": "0",
+            "priceCurrency": "USD"
+        },
+        "browserRequirements": "Requires WebGL support"
+    }
+    </script>
+
+    <!-- Analytics -->
+    <script defer data-domain="crit.quest" src="https://plausible.io/js/script.js"></script>
+
+    <!-- Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=MedievalSharp&family=Open+Sans:wght@400;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Uncial+Antiqua&family=Cormorant+Garamond:ital,wght@0,400;0,600;0,700;1,400&family=Cinzel:wght@400;700;900&display=swap" rel="stylesheet">
+
+    <link rel="stylesheet" href="style.css">
 </head>
 <body>
-    <div class="app-container">
-        <header class="app-header">
-            <h1>Tavern Dice</h1>
-            <p>Your 3D Dice Rolling Companion</p>
-        </header>
+    <!-- Skip to content (a11y) -->
+    <a href="#dice-canvas" class="skip-link">Skip to dice roller</a>
 
+    <div class="app-container">
         <div class="main-content">
-            <div class="controls-panel">
-                <h2>Select Your Dice</h2>
-                <div class="dice-selector">
-                    <div class="dice-option">
-                        <label for="d4">d4:</label>
-                        <input type="number" id="d4" name="d4" min="0" max="20" value="0">
-                    </div>
-                    <div class="dice-option">
-                        <label for="d6">d6:</label>
-                        <input type="number" id="d6" name="d6" min="0" max="20" value="0">
-                    </div>
-                    <div class="dice-option">
-                        <label for="d8">d8:</label>
-                        <input type="number" id="d8" name="d8" min="0" max="20" value="0">
-                    </div>
-                    <div class="dice-option">
-                        <label for="d10">d10:</label>
-                        <input type="number" id="d10" name="d10" min="0" max="20" value="0">
-                    </div>
-                     <div class="dice-option">
-                        <label for="d100">d% (00-90):</label>
-                        <input type="number" id="d100" name="d100" min="0" max="20" value="0">
-                    </div>
-                    <div class="dice-option">
-                        <label for="d12">d12:</label>
-                        <input type="number" id="d12" name="d12" min="0" max="20" value="0">
-                    </div>
-                    <div class="dice-option">
-                        <label for="d20">d20:</label>
-                        <input type="number" id="d20" name="d20" min="0" max="20" value="1">
+            <canvas id="dice-canvas"></canvas>
+
+            <div id="result-overlay" class="result-overlay hidden">
+                <div class="result-total"></div>
+                <div class="result-breakdown"></div>
+                <button id="share-roll-button" class="share-roll-btn hidden" aria-label="Share this roll result">Share Roll</button>
+            </div>
+
+            <div class="controls-panel" id="controls-panel">
+                <div class="controls-header">
+                    <h1>Tavern Dice</h1>
+                    <div class="controls-header-actions">
+                        <button id="sound-toggle" class="icon-btn" aria-label="Toggle sound" title="Toggle sound">
+                            <svg class="sound-on-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>
+                            <svg class="sound-off-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><line x1="23" y1="9" x2="17" y2="15"/><line x1="17" y1="9" x2="23" y2="15"/></svg>
+                        </button>
                     </div>
                 </div>
+
+                <div class="dice-selector" role="group" aria-label="Dice selection">
+                    <div class="dice-option" data-die="d4">
+                        <div class="dice-option-info">
+                            <svg class="dice-icon" viewBox="0 0 24 24" width="24" height="24"><polygon points="12,2 2,22 22,22" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>
+                            <span class="dice-label">d4</span>
+                        </div>
+                        <div class="dice-counter">
+                            <button class="counter-btn minus" aria-label="Remove one d4" data-die="d4" data-dir="-1">-</button>
+                            <input type="number" id="d4" name="d4" min="0" max="20" value="0" aria-label="Number of d4 dice">
+                            <button class="counter-btn plus" aria-label="Add one d4" data-die="d4" data-dir="1">+</button>
+                        </div>
+                    </div>
+                    <div class="dice-option" data-die="d6">
+                        <div class="dice-option-info">
+                            <svg class="dice-icon" viewBox="0 0 24 24" width="24" height="24"><rect x="3" y="3" width="18" height="18" rx="2" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>
+                            <span class="dice-label">d6</span>
+                        </div>
+                        <div class="dice-counter">
+                            <button class="counter-btn minus" aria-label="Remove one d6" data-die="d6" data-dir="-1">-</button>
+                            <input type="number" id="d6" name="d6" min="0" max="20" value="0" aria-label="Number of d6 dice">
+                            <button class="counter-btn plus" aria-label="Add one d6" data-die="d6" data-dir="1">+</button>
+                        </div>
+                    </div>
+                    <div class="dice-option" data-die="d8">
+                        <div class="dice-option-info">
+                            <svg class="dice-icon" viewBox="0 0 24 24" width="24" height="24"><polygon points="12,2 22,12 12,22 2,12" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>
+                            <span class="dice-label">d8</span>
+                        </div>
+                        <div class="dice-counter">
+                            <button class="counter-btn minus" aria-label="Remove one d8" data-die="d8" data-dir="-1">-</button>
+                            <input type="number" id="d8" name="d8" min="0" max="20" value="0" aria-label="Number of d8 dice">
+                            <button class="counter-btn plus" aria-label="Add one d8" data-die="d8" data-dir="1">+</button>
+                        </div>
+                    </div>
+                    <div class="dice-option" data-die="d10">
+                        <div class="dice-option-info">
+                            <svg class="dice-icon" viewBox="0 0 24 24" width="24" height="24"><polygon points="12,1 22,8 19,22 5,22 2,8" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>
+                            <span class="dice-label">d10</span>
+                        </div>
+                        <div class="dice-counter">
+                            <button class="counter-btn minus" aria-label="Remove one d10" data-die="d10" data-dir="-1">-</button>
+                            <input type="number" id="d10" name="d10" min="0" max="20" value="0" aria-label="Number of d10 dice">
+                            <button class="counter-btn plus" aria-label="Add one d10" data-die="d10" data-dir="1">+</button>
+                        </div>
+                    </div>
+                    <div class="dice-option" data-die="d100">
+                        <div class="dice-option-info">
+                            <svg class="dice-icon" viewBox="0 0 24 24" width="24" height="24"><polygon points="12,1 22,8 19,22 5,22 2,8" fill="none" stroke="currentColor" stroke-width="1.5"/><text x="12" y="16" text-anchor="middle" font-size="7" fill="currentColor">%</text></svg>
+                            <span class="dice-label">d%</span>
+                        </div>
+                        <div class="dice-counter">
+                            <button class="counter-btn minus" aria-label="Remove one d100" data-die="d100" data-dir="-1">-</button>
+                            <input type="number" id="d100" name="d100" min="0" max="20" value="0" aria-label="Number of d100 dice">
+                            <button class="counter-btn plus" aria-label="Add one d100" data-die="d100" data-dir="1">+</button>
+                        </div>
+                    </div>
+                    <div class="dice-option" data-die="d12">
+                        <div class="dice-option-info">
+                            <svg class="dice-icon" viewBox="0 0 24 24" width="24" height="24"><polygon points="12,1 20,5 23,13 18,21 6,21 1,13 4,5" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>
+                            <span class="dice-label">d12</span>
+                        </div>
+                        <div class="dice-counter">
+                            <button class="counter-btn minus" aria-label="Remove one d12" data-die="d12" data-dir="-1">-</button>
+                            <input type="number" id="d12" name="d12" min="0" max="20" value="0" aria-label="Number of d12 dice">
+                            <button class="counter-btn plus" aria-label="Add one d12" data-die="d12" data-dir="1">+</button>
+                        </div>
+                    </div>
+                    <div class="dice-option" data-die="d20">
+                        <div class="dice-option-info">
+                            <svg class="dice-icon" viewBox="0 0 24 24" width="24" height="24"><polygon points="12,1 21,7 21,17 12,23 3,17 3,7" fill="none" stroke="currentColor" stroke-width="1.5"/><line x1="12" y1="1" x2="12" y2="23" stroke="currentColor" stroke-width="0.75"/><line x1="3" y1="7" x2="21" y2="17" stroke="currentColor" stroke-width="0.75"/><line x1="21" y1="7" x2="3" y2="17" stroke="currentColor" stroke-width="0.75"/></svg>
+                            <span class="dice-label">d20</span>
+                        </div>
+                        <div class="dice-counter">
+                            <button class="counter-btn minus" aria-label="Remove one d20" data-die="d20" data-dir="-1">-</button>
+                            <input type="number" id="d20" name="d20" min="0" max="20" value="1" aria-label="Number of d20 dice">
+                            <button class="counter-btn plus" aria-label="Add one d20" data-die="d20" data-dir="1">+</button>
+                        </div>
+                    </div>
+                </div>
+
                 <div class="power-bars">
                     <div class="power-bar-group">
                         <label>Power</label>
-                        <div class="power-bar-track" id="power-track">
+                        <div class="power-bar-track" id="power-track" tabindex="0" role="button" aria-label="Click to stop power meter">
                             <div class="power-bar-fill" id="power-fill"></div>
                             <div class="power-bar-marker" id="power-marker"></div>
                         </div>
@@ -60,51 +178,38 @@
                     </div>
                     <div class="power-bar-group">
                         <label>Spin</label>
-                        <div class="power-bar-track" id="spin-track">
+                        <div class="power-bar-track" id="spin-track" tabindex="0" role="button" aria-label="Click to stop spin meter">
                             <div class="power-bar-fill" id="spin-fill"></div>
                             <div class="power-bar-marker" id="spin-marker"></div>
                         </div>
                         <span class="power-value" id="spin-value">-</span>
                     </div>
-                    <button id="power-roll-button" class="power-roll-btn">Power Roll</button>
+                    <button id="power-roll-button" class="power-roll-btn" aria-label="Start power roll">Power Roll</button>
                 </div>
+
                 <div class="action-buttons">
-                    <button id="roll-button">Quick Roll</button>
-                    <button id="clear-button">Clear Table</button>
+                    <button id="roll-button" aria-label="Quick roll dice">Quick Roll</button>
+                    <button id="clear-button" aria-label="Clear dice from table">Clear Table</button>
                 </div>
-                <div id="results">
+
+                <div id="results" aria-live="polite">
                     <h2>Results</h2>
                     <p id="total-result">Total: 0</p>
                     <p id="individual-results">Individual: -</p>
                 </div>
-            </div>
 
-            <div class="canvas-container">
-                <canvas id="dice-canvas"></canvas>
-                <div id="result-overlay" class="result-overlay hidden">
-                    <div class="result-total"></div>
-                    <div class="result-breakdown"></div>
-                </div>
-                 <!-- Placeholder for a non-intrusive sidebar ad -->
-                 <div class="ad-placeholder ad-sidebar">Sidebar Ad Space</div>
+                <button id="share-config-button" class="share-config-btn" aria-label="Copy shareable link for current dice configuration">Share Dice Link</button>
             </div>
-
         </div>
 
         <footer class="app-footer">
-            <!-- Placeholder for a non-intrusive banner ad -->
-            <div class="ad-placeholder ad-banner">Banner Ad Space</div>
-        </footer>
-
-        <!-- Interstitial Ad Container -->
-        <div id="interstitial-ad" class="interstitial hidden">
-            <div class="interstitial-content">
-                <h2>Advertisement</h2>
-                <p>This is where an interstitial ad would appear.</p>
-                <p>(Normally loaded via an ad network SDK)</p>
-                <button id="close-interstitial">Close Ad</button>
+            <div class="footer-content">
+                <p>Free 3D dice roller for D&D, Pathfinder, and tabletop RPGs. Roll d4, d6, d8, d10, d12, d20 with realistic physics.</p>
+                <p class="footer-links">
+                    <a href="https://crit.quest/">crit.quest</a>
+                </p>
             </div>
-        </div>
+        </footer>
     </div>
 
     <!-- Libraries via CDN -->
@@ -118,6 +223,6 @@
         }
     </script>
     <!-- Main App Script -->
-    <script type="module" src="script.js?v=23"></script>
+    <script type="module" src="script.js?v=24"></script>
 </body>
 </html>

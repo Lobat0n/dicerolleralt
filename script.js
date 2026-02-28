@@ -4,14 +4,13 @@ import * as CANNON from 'cannon-es';
 
 // --- Configuration ---
 const config = {
-    maxDice: 50, // Limit total dice to prevent performance issues
-    settleThreshold: 0.15, // Velocity threshold to consider a die settled (lower is stricter)
-    settleTimeThreshold: 80, // Frames count threshold below settleThreshold
-    baseDieColor: 0xeeeeee, // Default color before specific type coloring
-    floorColor: 0x402E32, // Dark wood/stone color
-    wallColor: 0x666666, // Invisible wall color (debug)
-    showWallVisuals: false, // Set true to see wall boundaries (uses wallColor)
-    interstitialAdFrequency: 10, // Show ad every X rolls
+    maxDice: 50,
+    settleThreshold: 0.15,
+    settleTimeThreshold: 80,
+    baseDieColor: 0xeeeeee,
+    floorColor: 0x2a1a0e,
+    wallColor: 0x666666,
+    showWallVisuals: false,
 };
 
 // --- DOM Elements ---
@@ -29,12 +28,12 @@ const diceInputs = {
     d12: document.getElementById('d12'),
     d20: document.getElementById('d20'),
 };
-const interstitialAdElement = document.getElementById('interstitial-ad');
-const closeInterstitialButton = document.getElementById('close-interstitial');
-const canvasContainer = document.querySelector('.canvas-container'); // Get container for size
+const mainContent = document.querySelector('.main-content');
 const resultOverlay = document.getElementById('result-overlay');
 const resultOverlayTotal = resultOverlay.querySelector('.result-total');
 const resultOverlayBreakdown = resultOverlay.querySelector('.result-breakdown');
+const shareRollButton = document.getElementById('share-roll-button');
+const shareConfigButton = document.getElementById('share-config-button');
 const powerRollButton = document.getElementById('power-roll-button');
 const powerMarker = document.getElementById('power-marker');
 const spinMarker = document.getElementById('spin-marker');
@@ -42,16 +41,21 @@ const powerValueEl = document.getElementById('power-value');
 const spinValueEl = document.getElementById('spin-value');
 const powerTrack = document.getElementById('power-track');
 const spinTrack = document.getElementById('spin-track');
+const soundToggle = document.getElementById('sound-toggle');
+const controlsPanel = document.getElementById('controls-panel');
+
+// --- Sound State ---
+let soundEnabled = true;
 
 // --- Power Bar State ---
 let powerBarActive = false;
 let powerBarPhase = 'idle'; // 'idle' | 'power' | 'spin' | 'done'
-let powerVal = 0; // 0-100
-let spinVal = 0;  // 0-100
+let powerVal = 0;
+let spinVal = 0;
 let powerDir = 1;
 let spinDir = 1;
 let powerBarAnimId = null;
-const BAR_SPEED = 2.5; // % per frame
+const BAR_SPEED = 2.5;
 
 function animatePowerBars() {
     if (powerBarPhase === 'power') {
@@ -92,48 +96,44 @@ function resetPowerBars() {
 
 function onPowerRollClick() {
     if (rolling) return;
-    
+
     if (powerBarPhase === 'idle') {
-        // Start power bar
         resetPowerBars();
         powerBarPhase = 'power';
         powerRollButton.textContent = 'Stop Power!';
         powerRollButton.classList.add('waiting');
         animatePowerBars();
     } else if (powerBarPhase === 'power') {
-        // Lock power, start spin
         powerMarker.classList.add('stopped');
         powerBarPhase = 'spin';
         powerRollButton.textContent = 'Stop Spin!';
     } else if (powerBarPhase === 'spin') {
-        // Lock spin, execute roll
         spinMarker.classList.add('stopped');
         powerBarPhase = 'done';
         powerRollButton.classList.remove('waiting');
         powerRollButton.textContent = 'Rolling...';
         if (powerBarAnimId) cancelAnimationFrame(powerBarAnimId);
-        // Execute roll with power/spin values
         handleRollClick(powerVal / 100, spinVal / 100);
     }
 }
 
-// Also allow clicking the tracks to stop
 function onPowerTrackClick() { if (powerBarPhase === 'power') onPowerRollClick(); }
 function onSpinTrackClick() { if (powerBarPhase === 'spin') onPowerRollClick(); }
 
 // --- Sound System (Web Audio API) ---
 let audioCtx = null;
 function getAudioCtx() {
+    if (!soundEnabled) return null;
     if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
     return audioCtx;
 }
 
 function playDiceHit(intensity = 0.5) {
     const ctx = getAudioCtx();
+    if (!ctx) return;
     const now = ctx.currentTime;
     const dur = 0.06 + intensity * 0.04;
-    
-    // Noise burst for impact
+
     const bufferSize = ctx.sampleRate * dur;
     const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
     const data = buffer.getChannelData(0);
@@ -142,17 +142,16 @@ function playDiceHit(intensity = 0.5) {
     }
     const src = ctx.createBufferSource();
     src.buffer = buffer;
-    
-    // Bandpass for woody click sound
+
     const filter = ctx.createBiquadFilter();
     filter.type = 'bandpass';
     filter.frequency.value = 800 + intensity * 1200;
     filter.Q.value = 1.5;
-    
+
     const gain = ctx.createGain();
     gain.gain.setValueAtTime(0.15 * intensity, now);
     gain.gain.exponentialRampToValueAtTime(0.001, now + dur);
-    
+
     src.connect(filter).connect(gain).connect(ctx.destination);
     src.start(now);
     src.stop(now + dur);
@@ -160,10 +159,10 @@ function playDiceHit(intensity = 0.5) {
 
 function playRollSound() {
     const ctx = getAudioCtx();
+    if (!ctx) return;
     const now = ctx.currentTime;
     const dur = 0.8;
-    
-    // Longer filtered noise for tumbling
+
     const bufferSize = ctx.sampleRate * dur;
     const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
     const data = buffer.getChannelData(0);
@@ -172,16 +171,16 @@ function playRollSound() {
     }
     const src = ctx.createBufferSource();
     src.buffer = buffer;
-    
+
     const filter = ctx.createBiquadFilter();
     filter.type = 'lowpass';
     filter.frequency.setValueAtTime(2000, now);
     filter.frequency.exponentialRampToValueAtTime(400, now + dur);
-    
+
     const gain = ctx.createGain();
     gain.gain.setValueAtTime(0.12, now);
     gain.gain.exponentialRampToValueAtTime(0.001, now + dur);
-    
+
     src.connect(filter).connect(gain).connect(ctx.destination);
     src.start(now);
     src.stop(now + dur);
@@ -189,9 +188,9 @@ function playRollSound() {
 
 function playSettleChime() {
     const ctx = getAudioCtx();
+    if (!ctx) return;
     const now = ctx.currentTime;
-    
-    // Short pleasant tone when results show
+
     [523, 659, 784].forEach((freq, i) => {
         const osc = ctx.createOscillator();
         osc.type = 'sine';
@@ -207,11 +206,11 @@ function playSettleChime() {
     });
 }
 
-// Collision sound handler for cannon-es
+// Collision sound handler
 let lastCollisionSound = 0;
 function onPhysicsCollision(e) {
     const now = performance.now();
-    if (now - lastCollisionSound < 40) return; // Throttle
+    if (now - lastCollisionSound < 40) return;
     lastCollisionSound = now;
     const impact = e.contact ? Math.min(1, e.contact.getImpactVelocityAlongNormal() / 15) : 0.3;
     if (impact > 0.05) playDiceHit(impact);
@@ -222,26 +221,23 @@ let scene, camera, renderer, world, controls;
 let diceMeshes = [];
 let diceBodies = [];
 let floorMesh, floorBody;
-let walls = []; // To keep dice contained
+let walls = [];
 let rolling = false;
-let settleCheck = new Map(); // Map<bodyId, consecutiveFramesBelowThreshold>
-let rollCount = 0;
-let rollPendingAfterAd = false; // Flag if a roll was interrupted by an ad
-let cameraAnimating = false; // True while camera auto-moves to top-down
+let settleCheck = new Map();
+let cameraAnimating = false;
+let lastRollResults = null; // Store last results for sharing
 
 // --- Camera Animation State ---
 const cameraDefault = { pos: new THREE.Vector3(0, 20, 18), lookAt: new THREE.Vector3(0, 0, 0) };
 let cameraTarget = cameraDefault;
-let cameraLerpSpeed = 2.5; // Speed of camera transition
+let cameraLerpSpeed = 2.5;
 
 // --- Physics Materials ---
 const diceMaterial = new CANNON.Material('diceMaterial');
 const floorMaterial = new CANNON.Material('floorMaterial');
-const wallMaterial = new CANNON.Material('wallMaterial'); // For invisible walls
+const wallMaterial = new CANNON.Material('wallMaterial');
 
 // --- Texture & Number Functions ---
-
-// Creates a canvas with solid background + number (for d6 faces)
 function createFaceTexture(text, size, bgColor, textColor) {
     const c = document.createElement('canvas');
     c.width = size;
@@ -262,43 +258,36 @@ function createFaceTexture(text, size, bgColor, textColor) {
     return c;
 }
 
-// Creates a canvas texture with a number (transparent background)
 function createNumberCanvas(text, size) {
     const c = document.createElement('canvas');
     c.width = size;
     c.height = size;
     const ctx = c.getContext('2d');
-    
-    // Transparent background
     ctx.clearRect(0, 0, size, size);
-    
+
     const fontSize = text.length > 2 ? size * 0.5 : text.length > 1 ? size * 0.6 : size * 0.7;
     ctx.font = `bold ${fontSize}px Arial, sans-serif`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    
-    // Dark outline for readability
+
     ctx.strokeStyle = '#000000';
     ctx.lineWidth = Math.max(4, fontSize * 0.12);
     ctx.lineJoin = 'round';
     ctx.strokeText(text, size / 2, size / 2);
-    
-    // White fill
+
     ctx.fillStyle = '#ffffff';
     ctx.fillText(text, size / 2, size / 2);
-    
+
     return c;
 }
 
-// Finds geometric faces by grouping triangles with the same normal
 function getGeometricFaces(geometry) {
-    // Work on non-indexed geometry
     const geo = geometry.index ? geometry.toNonIndexed() : geometry;
     const pos = geo.getAttribute('position');
     const triangleCount = pos.count / 3;
-    const groups = []; // { normal, center, triangles[] }
+    const groups = [];
     const eps = 0.01;
-    
+
     for (let tri = 0; tri < triangleCount; tri++) {
         const a = new THREE.Vector3().fromBufferAttribute(pos, tri * 3);
         const b = new THREE.Vector3().fromBufferAttribute(pos, tri * 3 + 1);
@@ -307,7 +296,7 @@ function getGeometricFaces(geometry) {
             new THREE.Vector3().subVectors(b, a),
             new THREE.Vector3().subVectors(c, a)
         ).normalize();
-        
+
         let found = false;
         for (const g of groups) {
             if (Math.abs(normal.x - g.normal.x) < eps &&
@@ -322,13 +311,11 @@ function getGeometricFaces(geometry) {
             groups.push({ normal: normal.clone(), vertices: [a, b, c] });
         }
     }
-    
-    // Compute center and radius of each face group
+
     return groups.map(g => {
         const center = new THREE.Vector3();
         g.vertices.forEach(v => center.add(v));
         center.divideScalar(g.vertices.length);
-        // Compute face radius (max distance from center to any vertex)
         let maxDist = 0;
         g.vertices.forEach(v => {
             const d = v.distanceTo(center);
@@ -338,12 +325,10 @@ function getGeometricFaces(geometry) {
     });
 }
 
-// Special d4 numbering: numbers at vertices, not face centers
 function addD4Numbers(mesh, geometry) {
     const geo = geometry.index ? geometry.toNonIndexed() : geometry;
     const pos = geo.getAttribute('position');
-    
-    // Find unique vertices of the tetrahedron
+
     const uniqueVerts = [];
     const eps = 0.01;
     for (let i = 0; i < pos.count; i++) {
@@ -354,38 +339,31 @@ function addD4Numbers(mesh, geometry) {
         }
         if (!found) uniqueVerts.push(v.clone());
     }
-    
-    // Assign values 1-4 to each vertex
-    // Store vertex→value mapping for result reading
+
     const vertexValues = uniqueVerts.map((v, i) => ({ pos: v, value: i + 1 }));
     mesh.userData.d4Vertices = vertexValues;
-    
-    // Get geometric faces
+
     const faces = getGeometricFaces(geometry);
-    
-    // For each face, place 3 numbers (one near each vertex of that face)
+
     for (const face of faces) {
-        // Find which 3 unique vertices belong to this face
         const faceVerts = [];
         for (const vv of vertexValues) {
-            // Check if this vertex is on this face (close to the face plane)
             const toVert = new THREE.Vector3().subVectors(vv.pos, face.center);
             const distFromPlane = Math.abs(toVert.dot(face.normal));
             if (distFromPlane < eps * 10) {
                 faceVerts.push(vv);
             }
         }
-        
+
         for (const fv of faceVerts) {
-            // Position: 65% from face center toward the vertex
             const labelPos = new THREE.Vector3().lerpVectors(face.center, fv.pos, 0.6);
             const offset = face.normal.clone().multiplyScalar(0.03);
             labelPos.add(offset);
-            
+
             const numCanvas = createNumberCanvas(fv.value.toString(), 128);
             const texture = new THREE.CanvasTexture(numCanvas);
             texture.needsUpdate = true;
-            
+
             const size = 0.6;
             const planeGeo = new THREE.PlaneGeometry(size, size);
             const planeMat = new THREE.MeshBasicMaterial({
@@ -396,23 +374,22 @@ function addD4Numbers(mesh, geometry) {
             });
             const plane = new THREE.Mesh(planeGeo, planeMat);
             plane.position.copy(labelPos);
-            
+
             const target = labelPos.clone().add(face.normal);
             plane.lookAt(target);
-            
+
             mesh.add(plane);
         }
     }
 }
 
-// Reads d4 value from the highest vertex
 function readD4Value(dieMesh) {
     const verts = dieMesh.userData.d4Vertices;
     if (!verts) return 1;
-    
+
     const worldQuaternion = dieMesh.getWorldQuaternion(new THREE.Quaternion());
     const worldPos = dieMesh.getWorldPosition(new THREE.Vector3());
-    
+
     let highestY = -Infinity;
     let result = 1;
     for (const v of verts) {
@@ -425,30 +402,25 @@ function readD4Value(dieMesh) {
     return result;
 }
 
-// Adds number planes to a die mesh and stores face→label mapping for result detection
 function addFaceNumbers(mesh, geometry, labels) {
     const faces = getGeometricFaces(geometry);
     const faceCount = labels.length;
-    
-    // Store face data for result detection
+
     const faceData = [];
-    
+
     for (let i = 0; i < Math.min(faces.length, faceCount); i++) {
         const face = faces[i];
         const label = labels[i];
         const numericValue = parseInt(label) || 0;
-        
+
         faceData.push({ normal: face.normal.clone(), value: numericValue, label: label });
-        
-        // Size the plane to fill face without overflow
+
         const size = face.radius * 0.9;
-        
-        // Create number texture
+
         const numCanvas = createNumberCanvas(label, 256);
         const texture = new THREE.CanvasTexture(numCanvas);
         texture.needsUpdate = true;
-        
-        // Create plane sized to face
+
         const planeGeo = new THREE.PlaneGeometry(size, size);
         const planeMat = new THREE.MeshBasicMaterial({
             map: texture,
@@ -457,23 +429,19 @@ function addFaceNumbers(mesh, geometry, labels) {
             side: THREE.DoubleSide,
         });
         const plane = new THREE.Mesh(planeGeo, planeMat);
-        
-        // Position at face center, slightly above the surface
+
         const offset = face.normal.clone().multiplyScalar(0.03);
         plane.position.copy(face.center).add(offset);
-        
-        // Orient plane to face outward along face normal
+
         const target = face.center.clone().add(face.normal);
         plane.lookAt(target);
-        
+
         mesh.add(plane);
     }
-    
-    // Store on mesh for result detection
+
     mesh.userData.faceData = faceData;
 }
 
-// Creates d6 materials (BoxGeometry has 6 material groups natively)
 function createD6Materials(baseColor) {
     const bgHex = '#' + baseColor.toString(16).padStart(6, '0');
     const faces = [4, 3, 1, 6, 2, 5];
@@ -493,12 +461,12 @@ function createD6Materials(baseColor) {
 function init() {
     // Scene
     scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x3a3a3a); // Match body background
+    scene.background = new THREE.Color(0x1a1510);
 
     // Camera
-    const aspect = canvasContainer.clientWidth / canvasContainer.clientHeight;
+    const aspect = mainContent.clientWidth / mainContent.clientHeight;
     camera = new THREE.PerspectiveCamera(60, aspect, 0.1, 1000);
-    camera.position.set(0, 20, 18); // Positioned above looking down
+    camera.position.set(0, 20, 18);
     camera.lookAt(0, 0, 0);
 
     // Renderer
@@ -506,44 +474,46 @@ function init() {
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
-    // OrbitControls (disabled during roll, enabled after settle)
+    // OrbitControls
     controls = new OrbitControls(camera, renderer.domElement);
     controls.enableDamping = true;
     controls.dampingFactor = 0.1;
     controls.target.set(0, 0, 0);
-    controls.maxPolarAngle = Math.PI / 2.1; // Don't go below floor
+    controls.maxPolarAngle = Math.PI / 2.1;
     controls.minDistance = 5;
     controls.maxDistance = 50;
-    controls.enabled = false; // Disabled until dice settle
+    controls.enabled = false;
 
-    // Lighting
-    const ambientLight = new THREE.AmbientLight(0xffffff, 0.7); // Slightly brighter ambient
+    // Lighting — warm tavern atmosphere
+    const ambientLight = new THREE.AmbientLight(0xfff5e6, 0.6);
     scene.add(ambientLight);
-    const directionalLight = new THREE.DirectionalLight(0xffffff, 0.9); // Slightly brighter directional
+
+    const directionalLight = new THREE.DirectionalLight(0xfff0dd, 0.8);
     directionalLight.position.set(8, 15, 10);
     directionalLight.castShadow = true;
     directionalLight.shadow.mapSize.width = 1024;
     directionalLight.shadow.mapSize.height = 1024;
     directionalLight.shadow.camera.near = 0.5;
     directionalLight.shadow.camera.far = 50;
-    // Adjust shadow camera bounds to better fit the rolling area
     const shadowBounds = 15;
     directionalLight.shadow.camera.left = -shadowBounds;
     directionalLight.shadow.camera.right = shadowBounds;
     directionalLight.shadow.camera.top = shadowBounds;
     directionalLight.shadow.camera.bottom = -shadowBounds;
     scene.add(directionalLight);
-    //scene.add(new THREE.CameraHelper(directionalLight.shadow.camera)); // Uncomment to debug shadow
 
+    // Warm fireplace point light
+    const fireplaceLight = new THREE.PointLight(0xd4a349, 0.4, 40);
+    fireplaceLight.position.set(-10, 5, -8);
+    scene.add(fireplaceLight);
 
     // Physics World
     world = new CANNON.World({
-        gravity: new CANNON.Vec3(0, -35, 0) // Slightly stronger gravity
+        gravity: new CANNON.Vec3(0, -35, 0)
     });
-    world.broadphase = new CANNON.SAPBroadphase(world); // Potentially better performance
-    world.allowSleep = true; // Allow bodies to sleep when settled
+    world.broadphase = new CANNON.SAPBroadphase(world);
+    world.allowSleep = true;
 
-    // Physics Materials Contact Behavior
     const diceFloorContact = new CANNON.ContactMaterial(diceMaterial, floorMaterial, {
         friction: 0.8,
         restitution: 0.1,
@@ -556,28 +526,27 @@ function init() {
     });
     world.addContactMaterial(diceWallContact);
 
-     const diceDiceContact = new CANNON.ContactMaterial(diceMaterial, diceMaterial, {
+    const diceDiceContact = new CANNON.ContactMaterial(diceMaterial, diceMaterial, {
         friction: 0.5,
         restitution: 0.15,
     });
     world.addContactMaterial(diceDiceContact);
 
     // Floor
-    const floorGeometry = new THREE.PlaneGeometry(100, 100); // Larger floor plane
+    const floorGeometry = new THREE.PlaneGeometry(100, 100);
     const floorMaterial3D = new THREE.MeshStandardMaterial({
         color: config.floorColor,
-        roughness: 0.8,
-        metalness: 0.2,
+        roughness: 0.92,
+        metalness: 0.1,
     });
     floorMesh = new THREE.Mesh(floorGeometry, floorMaterial3D);
     floorMesh.receiveShadow = true;
-    floorMesh.rotation.x = -Math.PI / 2; // Rotate flat
-    floorMesh.position.y = -0.1; // Slightly below origin
+    floorMesh.rotation.x = -Math.PI / 2;
+    floorMesh.position.y = -0.1;
     scene.add(floorMesh);
 
-    // Physics Floor
     floorBody = new CANNON.Body({
-        type: CANNON.Body.STATIC, // Explicitly static
+        type: CANNON.Body.STATIC,
         shape: new CANNON.Plane(),
         material: floorMaterial,
     });
@@ -585,7 +554,6 @@ function init() {
     floorBody.position.copy(floorMesh.position);
     world.addBody(floorBody);
 
-    // Invisible Walls (adjust positions based on view)
     createWalls();
 
     // Event Listeners
@@ -595,34 +563,87 @@ function init() {
     powerTrack.addEventListener('click', onPowerTrackClick);
     spinTrack.addEventListener('click', onSpinTrackClick);
     window.addEventListener('resize', onWindowResize);
-    closeInterstitialButton.addEventListener('click', hideInterstitialAd);
 
-    // Initial render & resize
-    onWindowResize(); // Set initial size correctly
+    // Keyboard handlers for power bar tracks
+    powerTrack.addEventListener('keydown', (e) => {
+        if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); onPowerTrackClick(); }
+    });
+    spinTrack.addEventListener('keydown', (e) => {
+        if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); onSpinTrackClick(); }
+    });
+
+    // Sound toggle
+    soundToggle.addEventListener('click', toggleSound);
+
+    // Share buttons
+    shareRollButton.addEventListener('click', shareRoll);
+    shareConfigButton.addEventListener('click', shareConfig);
+
+    // Dice counter +/- buttons
+    document.querySelectorAll('.counter-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const die = btn.dataset.die;
+            const dir = parseInt(btn.dataset.dir);
+            const input = diceInputs[die];
+            const newVal = Math.max(0, Math.min(20, parseInt(input.value) + dir));
+            input.value = newVal;
+            updateDiceOptionStates();
+            savePreferences();
+            // Bounce animation
+            input.classList.remove('bounce');
+            void input.offsetWidth;
+            input.classList.add('bounce');
+        });
+    });
+
+    // Input change listeners
+    for (const key in diceInputs) {
+        diceInputs[key].addEventListener('change', () => {
+            updateDiceOptionStates();
+            savePreferences();
+        });
+    }
+
+    // Mobile drawer: collapse/expand on drag handle area
+    if (window.innerWidth <= 900) {
+        controlsPanel.classList.add('collapsed');
+        controlsPanel.addEventListener('click', (e) => {
+            if (e.target === controlsPanel || e.target === controlsPanel.querySelector('::before')) {
+                controlsPanel.classList.toggle('collapsed');
+            }
+        });
+    }
+
+    // Restore preferences from localStorage
+    restorePreferences();
+
+    // Parse URL params for dice presets
+    parseUrlPreset();
+
+    // Initial state
+    updateDiceOptionStates();
+    onWindowResize();
     animate();
 }
 
 // --- Wall Creation ---
 function createWalls() {
-    const wallThickness = 2; // Thicker for physics stability
+    const wallThickness = 2;
     const wallHeight = 20;
-    // Calculate distance based roughly on camera view at floor level
     const halfFov = (camera.fov * Math.PI / 180) / 2;
     const distanceToFloor = camera.position.y - floorMesh.position.y;
     let viewWidth = 2 * distanceToFloor * Math.tan(halfFov) * camera.aspect;
     let viewHeight = 2 * distanceToFloor * Math.tan(halfFov);
-    // Use a fraction of the view size for wall distance, adjust multiplier as needed
     const wallDistX = Math.max(12, viewWidth * 0.4);
     const wallDistZ = Math.max(12, viewHeight * 0.4);
-
 
     const wallMaterial3D = new THREE.MeshBasicMaterial({ color: config.wallColor, wireframe: true, visible: config.showWallVisuals });
 
     const wallsData = [
-        { size: [wallDistX, wallHeight / 2, wallThickness / 2], pos: [0, wallHeight / 2, wallDistZ], rot: null }, // Z+
-        { size: [wallDistX, wallHeight / 2, wallThickness / 2], pos: [0, wallHeight / 2, -wallDistZ], rot: null }, // Z-
-        { size: [wallThickness / 2, wallHeight / 2, wallDistZ], pos: [wallDistX, wallHeight / 2, 0], rot: null }, // X+
-        { size: [wallThickness / 2, wallHeight / 2, wallDistZ], pos: [-wallDistX, wallHeight / 2, 0], rot: null } // X-
+        { size: [wallDistX, wallHeight / 2, wallThickness / 2], pos: [0, wallHeight / 2, wallDistZ], rot: null },
+        { size: [wallDistX, wallHeight / 2, wallThickness / 2], pos: [0, wallHeight / 2, -wallDistZ], rot: null },
+        { size: [wallThickness / 2, wallHeight / 2, wallDistZ], pos: [wallDistX, wallHeight / 2, 0], rot: null },
+        { size: [wallThickness / 2, wallHeight / 2, wallDistZ], pos: [-wallDistX, wallHeight / 2, 0], rot: null }
     ];
 
     wallsData.forEach(data => {
@@ -634,9 +655,8 @@ function createWalls() {
             wallBody.quaternion.setFromAxisAngle(new CANNON.Vec3(0, 1, 0), data.rot);
         }
         world.addBody(wallBody);
-        walls.push(wallBody); // Keep track if needed later
+        walls.push(wallBody);
 
-        // Add visual representation if enabled
         if (config.showWallVisuals) {
             const wallGeometry = new THREE.BoxGeometry(data.size[0]*2, data.size[1]*2, data.size[2]*2);
             const wallMesh = new THREE.Mesh(wallGeometry, wallMaterial3D);
@@ -647,9 +667,7 @@ function createWalls() {
     });
 }
 
-
 // --- Dice Geometry and Physics Shapes ---
-// Using standard Three.js geometries. d10/d100 are approximations.
 const diceData = {
     d4: {
         geometry: () => new THREE.TetrahedronGeometry(1.5),
@@ -702,20 +720,18 @@ const diceData = {
     }
 };
 
-// Helper to create Cannon ConvexPolyhedron from Three Geometry
-// Assumes geometry is non-indexed or handles indices correctly if present
 function createConvexPolyhedron(geometry) {
     const positionAttribute = geometry.getAttribute('position');
     const vertexMap = new Map();
     const vertices = [];
     const vertexIndices = [];
-    
+
     const epsilon = 0.0001;
-    
+
     for (let i = 0; i < positionAttribute.count; i++) {
         const vertex = new THREE.Vector3().fromBufferAttribute(positionAttribute, i);
         const key = `${Math.round(vertex.x / epsilon)}_${Math.round(vertex.y / epsilon)}_${Math.round(vertex.z / epsilon)}`;
-        
+
         if (!vertexMap.has(key)) {
             vertexMap.set(key, vertices.length);
             vertices.push(new CANNON.Vec3(vertex.x, vertex.y, vertex.z));
@@ -728,8 +744,8 @@ function createConvexPolyhedron(geometry) {
         const indices = geometry.index.array;
         for (let i = 0; i < indices.length; i += 3) {
             const face = [
-                vertexIndices[indices[i]], 
-                vertexIndices[indices[i + 1]], 
+                vertexIndices[indices[i]],
+                vertexIndices[indices[i + 1]],
                 vertexIndices[indices[i + 2]]
             ];
             if (face[0] !== face[1] && face[1] !== face[2] && face[0] !== face[2]) {
@@ -748,12 +764,10 @@ function createConvexPolyhedron(geometry) {
     return new CANNON.ConvexPolyhedron({ vertices, faces });
 }
 
-
 // --- Dice Creation ---
 function getDieLabels(type, sides, geometry) {
-    // Count actual geometric faces so every face gets a label
     const faceCount = getGeometricFaces(geometry).length;
-    
+
     let values;
     if (type === 'd100') {
         values = ['00', '10', '20', '30', '40', '50', '60', '70', '80', '90'];
@@ -765,8 +779,7 @@ function getDieLabels(type, sides, geometry) {
             values.push(i.toString());
         }
     }
-    
-    // If geometry has more faces than labels, cycle through labels
+
     const labels = [];
     for (let i = 0; i < faceCount; i++) {
         labels.push(values[i % values.length]);
@@ -779,13 +792,11 @@ function createDie(type) {
     if (!data) return null;
 
     const geometry = data.geometry();
-    const bgHex = `#${data.color.toString(16).padStart(6, '0')}`;
     let mesh;
-    
+
     if (type === 'd6') {
         const materials = createD6Materials(data.color);
         mesh = new THREE.Mesh(geometry, materials);
-        // Store d6 face data: +X=4, -X=3, +Y=1, -Y=6, +Z=2, -Z=5
         mesh.userData.faceData = [
             { normal: new THREE.Vector3(1, 0, 0), value: 4 },
             { normal: new THREE.Vector3(-1, 0, 0), value: 3 },
@@ -809,11 +820,10 @@ function createDie(type) {
             metalness: 0.2,
         });
         mesh = new THREE.Mesh(geometry, material);
-        // Add number planes to each face + store faceData
         const labels = getDieLabels(type, data.sides, geometry);
         addFaceNumbers(mesh, geometry, labels);
     }
-    
+
     mesh.castShadow = true;
     mesh.userData.type = type;
 
@@ -835,42 +845,39 @@ function createDie(type) {
 
 // --- Rolling Logic ---
 function handleRollClick(powerNorm, spinNorm) {
-    if (rolling) return; // Don't re-roll if already rolling
+    if (rolling) return;
 
-    // Default to random values for Quick Roll (no arguments)
     const power = (typeof powerNorm === 'number') ? powerNorm : (0.3 + Math.random() * 0.7);
     const spin = (typeof spinNorm === 'number') ? spinNorm : (0.3 + Math.random() * 0.7);
 
-    rollPendingAfterAd = false; // Reset flag
+    rollDice(power, spin);
 
-    // Check for interstitial Ad
-    rollCount++;
-    if (rollCount > 0 && rollCount % config.interstitialAdFrequency === 0) {
-        rollPendingAfterAd = true; // Set flag: user wants to roll after ad
-        showInterstitialAd();
-        // Don't proceed with roll yet
-        return;
+    // Auto-collapse mobile drawer
+    if (window.innerWidth <= 900) {
+        controlsPanel.classList.add('collapsed');
     }
-
-    rollDice(power, spin); // Proceed with roll if no ad shown
 }
 
 function rollDice(power = 0.5, spin = 0.5) {
     rolling = true;
-    controls.enabled = false; // Disable user controls during roll
-    cameraAnimating = true; // Animate camera back to default
-    cameraTarget = cameraDefault; // Reset camera to default angle
-    // Hide result overlay
-    resultOverlay.classList.remove('visible');
+    controls.enabled = false;
+    cameraAnimating = true;
+    cameraTarget = cameraDefault;
+
+    // Hide result overlay + share button
+    resultOverlay.classList.remove('visible', 'critical', 'fumble');
     resultOverlay.classList.add('hidden');
-    // Reset power bars UI
+    shareRollButton.classList.add('hidden');
+
+    // Add settling vignette
+    mainContent.classList.remove('settling');
+
     setTimeout(() => resetPowerBars(), 300);
-    clearDice(); // Clear previous dice
-    settleCheck.clear(); // Reset settlement check map
+    clearDice();
+    settleCheck.clear();
     resultsTotalElement.textContent = "Total: Rolling...";
     resultsIndividualElement.textContent = "Individual: -";
-    
-    // Scale force/torque based on power/spin (0-1)
+
     const baseForce = 8;
     const maxForce = 20;
     const baseTorque = 12;
@@ -881,20 +888,19 @@ function rollDice(power = 0.5, spin = 0.5) {
     let totalDiceCount = 0;
     const diceToRoll = [];
 
-    // Collect dice selections from inputs
     for (const type in diceInputs) {
         const count = parseInt(diceInputs[type].value, 10);
-        if (isNaN(count) || count <= 0) continue; // Skip invalid inputs
+        if (isNaN(count) || count <= 0) continue;
 
         if (totalDiceCount + count > config.maxDice) {
             alert(`Too many dice! Maximum is ${config.maxDice}. Reducing count of ${type}.`);
             const remainingSlots = Math.max(0, config.maxDice - totalDiceCount);
-            diceInputs[type].value = remainingSlots; // Adjust input value
-             for (let i = 0; i < remainingSlots; i++) {
+            diceInputs[type].value = remainingSlots;
+            for (let i = 0; i < remainingSlots; i++) {
                 diceToRoll.push(type);
             }
             totalDiceCount = config.maxDice;
-            break; // Stop adding more dice
+            break;
         } else {
             for (let i = 0; i < count; i++) {
                 diceToRoll.push(type);
@@ -906,15 +912,16 @@ function rollDice(power = 0.5, spin = 0.5) {
     if (totalDiceCount === 0) {
         resultsTotalElement.textContent = "Total: 0";
         rolling = false;
-        return; // Nothing to roll
+        return;
     }
 
-    // Create and position dice
-    const spread = 8; // How far dice are spread initially (keep within walls)
-    const initialHeight = 10; // How high dice start
+    const spread = 8;
+    const initialHeight = 10;
 
-    // Play initial roll sound
     playRollSound();
+
+    // Track analytics
+    trackEvent('dice_roll');
 
     diceToRoll.forEach((type, index) => {
         try {
@@ -966,11 +973,9 @@ function rollDice(power = 0.5, spin = 0.5) {
     });
 }
 
-
 // --- Clear Dice ---
 function clearDice() {
     diceMeshes.forEach(mesh => {
-        // Dispose child number planes
         while (mesh.children.length > 0) {
             const child = mesh.children[0];
             if (child.geometry) child.geometry.dispose();
@@ -1000,7 +1005,6 @@ function clearDice() {
 }
 
 // --- Animation Loop ---
-const clock = new THREE.Clock();
 let lastTime = 0;
 function animate(time = 0) {
     requestAnimationFrame(animate);
@@ -1011,71 +1015,75 @@ function animate(time = 0) {
     const dt = (isNaN(deltaTime) || deltaTime <= 0) ? 1/60 : Math.min(1/30, deltaTime * 0.001);
 
     try {
-    // Only step physics if rolling or dice haven't fully settled
-    if (diceBodies.length > 0) {
-        world.step(1/60, dt, 3); // Fixed timestep with interpolation
+        if (diceBodies.length > 0) {
+            world.step(1/60, dt, 3);
 
-        let allSettled = diceBodies.length > 0; // Assume settled if there are dice
+            let allSettled = diceBodies.length > 0;
 
-        diceBodies.forEach((body, index) => {
-            const mesh = diceMeshes[index]; // Assumes order is maintained
-            if (mesh && body) {
-                // Only update position/rotation if the body is not sleeping
-                mesh.position.copy(body.position);
-                mesh.quaternion.copy(body.quaternion);
+            // Add vignette as dice slow down
+            let maxVelocity = 0;
 
-                // Settlement check based on motion, not just velocity thresholds
-                const isMoving = body.sleepState !== CANNON.Body.SLEEPING &&
-                                 (body.velocity.lengthSquared() > config.settleThreshold * config.settleThreshold ||
-                                  body.angularVelocity.lengthSquared() > config.settleThreshold * config.settleThreshold);
+            diceBodies.forEach((body, index) => {
+                const mesh = diceMeshes[index];
+                if (mesh && body) {
+                    mesh.position.copy(body.position);
+                    mesh.quaternion.copy(body.quaternion);
 
-                if (!isMoving) {
-                     let currentSettleCount = settleCheck.get(body.id) || 0;
-                     currentSettleCount++;
-                     settleCheck.set(body.id, currentSettleCount);
-                     if (currentSettleCount < config.settleTimeThreshold) {
-                         allSettled = false; // This die isn't settled long enough
-                     }
+                    const vel = body.velocity.lengthSquared() + body.angularVelocity.lengthSquared();
+                    if (vel > maxVelocity) maxVelocity = vel;
+
+                    const isMoving = body.sleepState !== CANNON.Body.SLEEPING &&
+                                     (body.velocity.lengthSquared() > config.settleThreshold * config.settleThreshold ||
+                                      body.angularVelocity.lengthSquared() > config.settleThreshold * config.settleThreshold);
+
+                    if (!isMoving) {
+                        let currentSettleCount = settleCheck.get(body.id) || 0;
+                        currentSettleCount++;
+                        settleCheck.set(body.id, currentSettleCount);
+                        if (currentSettleCount < config.settleTimeThreshold) {
+                            allSettled = false;
+                        }
+                    } else {
+                        settleCheck.set(body.id, 0);
+                        body.wakeUp();
+                        allSettled = false;
+                    }
                 } else {
-                    settleCheck.set(body.id, 0); // Reset count if moving
-                    body.wakeUp(); // Ensure it's awake if moving significantly
-                    allSettled = false; // At least one die is moving
+                    allSettled = false;
                 }
-            } else {
-                allSettled = false; // Should not happen, but safety check
-            }
-        });
+            });
 
-         if (rolling && allSettled) {
-            rolling = false;
-            // Compute dice center for camera framing
-            const center = new THREE.Vector3();
-            diceMeshes.forEach(m => center.add(m.position));
-            center.divideScalar(diceMeshes.length);
-            center.y = 0;
-            // Animate camera to top-down view centered on dice
-            cameraTarget = {
-                pos: new THREE.Vector3(center.x, 25, center.z + 0.01),
-                lookAt: center
-            };
-            cameraAnimating = true;
-            // Enable OrbitControls after a short delay for camera to arrive
-            setTimeout(() => {
-                cameraAnimating = false;
-                controls.target.copy(center);
-                controls.enabled = true;
-                controls.update();
-            }, 800);
-            calculateResults();
+            // Show vignette as dice near settling
+            if (rolling && maxVelocity < 5) {
+                mainContent.classList.add('settling');
+            }
+
+            if (rolling && allSettled) {
+                rolling = false;
+                const center = new THREE.Vector3();
+                diceMeshes.forEach(m => center.add(m.position));
+                center.divideScalar(diceMeshes.length);
+                center.y = 0;
+                cameraTarget = {
+                    pos: new THREE.Vector3(center.x, 25, center.z + 0.01),
+                    lookAt: center
+                };
+                cameraAnimating = true;
+                setTimeout(() => {
+                    cameraAnimating = false;
+                    controls.target.copy(center);
+                    controls.enabled = true;
+                    controls.update();
+                    mainContent.classList.remove('settling');
+                }, 800);
+                calculateResults();
+            }
         }
-    }
     } catch(e) {
         console.error('Physics error:', e);
     }
 
-    // Camera handling
     if (cameraAnimating) {
-        // Smoothly interpolate camera to target
         const lerpFactor = 1.0 - Math.exp(-cameraLerpSpeed * Math.max(dt, 0.016));
         camera.position.lerp(cameraTarget.pos, lerpFactor);
         camera.lookAt(cameraTarget.lookAt);
@@ -1107,10 +1115,8 @@ function calculateResults() {
         resultsByType[type].push(value);
     });
 
-    // Format results string
     let individualStr = "";
     for (const type in resultsByType) {
-        // Sort results within each type for consistency
         resultsByType[type].sort((a, b) => a - b);
         individualStr += `${type}: [${resultsByType[type].join(', ')}] `;
     }
@@ -1118,25 +1124,42 @@ function calculateResults() {
     resultsTotalElement.textContent = `Total: ${total}`;
     resultsIndividualElement.textContent = `Individual: ${individualStr.trim()}`;
 
-    // Play settle chime
+    // Store results for sharing
+    lastRollResults = { total, resultsByType, individualStr: individualStr.trim() };
+
     playSettleChime();
 
-    // Show sleek overlay on canvas
+    // Determine if critical or fumble (only for single d20)
+    const isSingleD20 = diceBodies.length === 1 && diceBodies[0].userData.type === 'd20';
+    resultOverlay.classList.remove('critical', 'fumble');
+    if (isSingleD20 && total === 20) {
+        resultOverlay.classList.add('critical');
+    } else if (isSingleD20 && total === 1) {
+        resultOverlay.classList.add('fumble');
+    }
+
+    // Show overlay
     resultOverlayTotal.textContent = total;
     resultOverlayBreakdown.textContent = individualStr.trim();
     resultOverlay.classList.remove('hidden');
     resultOverlay.classList.add('visible');
+    shareRollButton.classList.remove('hidden');
+
+    // Update URL with current roll
+    updateUrlWithRoll();
+
+    // Pulse total in sidebar
+    resultsTotalElement.style.transform = 'scale(1.05)';
+    setTimeout(() => { resultsTotalElement.style.transform = 'scale(1)'; }, 300);
 }
 
-// --- Get Die Value (uses stored faceData for exact match with visible numbers) ---
 function readDieValue(dieBody, dieMesh) {
     const type = dieBody.userData.type;
-    
-    // d4: read from highest vertex (D&D convention)
+
     if (type === 'd4') {
         return readD4Value(dieMesh);
     }
-    
+
     const faceData = dieMesh?.userData?.faceData;
     if (!faceData || faceData.length === 0) {
         return Math.ceil(Math.random() * (diceData[type]?.sides || 6));
@@ -1144,51 +1167,192 @@ function readDieValue(dieBody, dieMesh) {
 
     const worldUp = new THREE.Vector3(0, 1, 0);
     const worldQuaternion = dieMesh.getWorldQuaternion(new THREE.Quaternion());
-    
+
     let bestDot = -Infinity;
     let bestValue = faceData[0].value;
-    
+
     for (const face of faceData) {
         const worldNormal = face.normal.clone().applyQuaternion(worldQuaternion);
         const dot = worldNormal.dot(worldUp);
-        
+
         if (dot > bestDot) {
             bestDot = dot;
             bestValue = face.value;
         }
     }
-    
+
     return bestValue;
 }
 
-
 // --- Window Resize ---
 function onWindowResize() {
-    const width = canvasContainer.clientWidth;
-    const height = canvasContainer.clientHeight;
+    const width = mainContent.clientWidth;
+    const height = mainContent.clientHeight;
 
-    // Check for zero dimensions to avoid errors during layout shifts
     if (width === 0 || height === 0) return;
 
     camera.aspect = width / height;
     camera.updateProjectionMatrix();
     renderer.setSize(width, height);
-
-    // Optional: Could recalculate wall positions here if desired
-    // world.removeBody(...); walls = []; createWalls(); // Example, might cause physics issues if done carelessly
 }
 
-// --- Ad Logic ---
-function showInterstitialAd() {
-    interstitialAdElement.classList.remove('hidden');
+// --- URL-Based Dice Presets ---
+function parseUrlPreset() {
+    const params = new URLSearchParams(window.location.search);
+    const rollParam = params.get('roll');
+    if (!rollParam) return;
+
+    // Reset all dice to 0
+    for (const key in diceInputs) {
+        diceInputs[key].value = 0;
+    }
+
+    // Parse notation like "2d6+1d20" or "4d6"
+    const regex = /(\d+)d(\d+)/g;
+    let match;
+    let hasAny = false;
+    while ((match = regex.exec(rollParam)) !== null) {
+        const count = parseInt(match[1]);
+        const sides = parseInt(match[2]);
+        const key = sides === 100 ? 'd100' : `d${sides}`;
+        if (diceInputs[key]) {
+            diceInputs[key].value = Math.min(20, parseInt(diceInputs[key].value) + count);
+            hasAny = true;
+        }
+    }
+
+    if (hasAny) {
+        updateDiceOptionStates();
+        // Auto-roll if URL has ?roll param
+        setTimeout(() => handleRollClick(), 500);
+    }
 }
 
-function hideInterstitialAd() {
-    interstitialAdElement.classList.add('hidden');
-    // IMPORTANT: After closing the ad, trigger the roll ONLY if it was pending
-    if (rollPendingAfterAd) {
-       rollPendingAfterAd = false; // Clear the flag
-       rollDice(); // Execute the roll that was interrupted
+function buildShareUrl() {
+    const parts = [];
+    for (const key in diceInputs) {
+        const count = parseInt(diceInputs[key].value);
+        if (count > 0) {
+            const sides = key === 'd100' ? '100' : key.slice(1);
+            parts.push(`${count}d${sides}`);
+        }
+    }
+    if (parts.length === 0) return window.location.origin + window.location.pathname;
+    return window.location.origin + window.location.pathname + '?roll=' + parts.join('+');
+}
+
+function updateUrlWithRoll() {
+    const url = buildShareUrl();
+    history.replaceState(null, '', url);
+}
+
+// --- Share ---
+function shareRoll() {
+    if (!lastRollResults) return;
+
+    const url = buildShareUrl();
+    const text = `Rolled ${lastRollResults.total}! (${lastRollResults.individualStr}) \u2014 Roll yours: ${url}`;
+
+    if (navigator.share) {
+        navigator.share({ title: 'Tavern Dice Roll', text, url }).catch(() => {});
+    } else {
+        navigator.clipboard.writeText(text).then(() => {
+            showToast('Copied!');
+        }).catch(() => {
+            showToast('Could not copy');
+        });
+    }
+
+    trackEvent('share_click');
+}
+
+function shareConfig() {
+    const url = buildShareUrl();
+    navigator.clipboard.writeText(url).then(() => {
+        showToast('Link copied!');
+    }).catch(() => {
+        showToast('Could not copy');
+    });
+}
+
+function showToast(message) {
+    const existing = document.querySelector('.toast');
+    if (existing) existing.remove();
+
+    const toast = document.createElement('div');
+    toast.className = 'toast';
+    toast.textContent = message;
+    document.body.appendChild(toast);
+    setTimeout(() => toast.remove(), 2200);
+}
+
+// --- Sound Toggle ---
+function toggleSound() {
+    soundEnabled = !soundEnabled;
+    document.body.classList.toggle('sound-off', !soundEnabled);
+    if (!soundEnabled && audioCtx) {
+        audioCtx.close();
+        audioCtx = null;
+    }
+    savePreferences();
+}
+
+// --- localStorage Preferences ---
+function savePreferences() {
+    const dice = {};
+    for (const key in diceInputs) {
+        dice[key] = parseInt(diceInputs[key].value) || 0;
+    }
+    try {
+        localStorage.setItem('tavernDice', JSON.stringify({
+            sound: soundEnabled,
+            dice,
+        }));
+    } catch (e) { /* ignore */ }
+}
+
+function restorePreferences() {
+    try {
+        const stored = localStorage.getItem('tavernDice');
+        if (!stored) return;
+        const prefs = JSON.parse(stored);
+
+        if (typeof prefs.sound === 'boolean') {
+            soundEnabled = prefs.sound;
+            document.body.classList.toggle('sound-off', !soundEnabled);
+        }
+
+        // Only restore dice if no URL preset is active
+        if (!window.location.search.includes('roll=') && prefs.dice) {
+            for (const key in prefs.dice) {
+                if (diceInputs[key]) {
+                    diceInputs[key].value = prefs.dice[key];
+                }
+            }
+        }
+    } catch (e) { /* ignore */ }
+
+    // Respect prefers-reduced-motion
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+        soundEnabled = false;
+        document.body.classList.add('sound-off');
+    }
+}
+
+// --- Dice Option Active States ---
+function updateDiceOptionStates() {
+    document.querySelectorAll('.dice-option').forEach(option => {
+        const die = option.dataset.die;
+        const input = diceInputs[die];
+        const count = parseInt(input?.value) || 0;
+        option.classList.toggle('active', count > 0);
+    });
+}
+
+// --- Analytics (Plausible) ---
+function trackEvent(name) {
+    if (typeof window.plausible === 'function') {
+        window.plausible(name);
     }
 }
 
